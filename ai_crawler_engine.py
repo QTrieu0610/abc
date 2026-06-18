@@ -197,8 +197,18 @@ Text:
         if not html:
             return True
         html_lower = html.lower()
-        signals = ["please verify you are a human", "cloudflare", "access denied", "captcha", "security check"]
-        return any(signal in html_lower for signal in signals)
+        signals = [
+            "please verify you are a human", "checking your browser before accessing", "access denied", 
+            "please complete the captcha", "security check", 
+            "2-step verification", "enter the otp", "two-factor authentication", "device verification"
+        ]
+        
+        for signal in signals:
+            if signal in html_lower:
+                print(f"[*] Phát hiện từ khóa nghi ngờ chặn Bot: '{signal}'")
+                return True
+                
+        return False
 
     def _simulate_human_behavior(self, page):
         page.mouse.move(random.randint(100, 500), random.randint(100, 500))
@@ -209,14 +219,25 @@ Text:
     def _handle_login(self, page):
         try:
             if page.locator("input[type='password']").is_visible(timeout=2000):
+                print("[!] Yêu cầu đăng nhập. Đang tự động điền thông tin bảo mật...")
                 page.locator("input[type='text'], input[name='username'], input[type='email']").first.fill(
                     self.credentials["username"]
                 )
                 page.wait_for_timeout(random.randint(300, 800))
                 page.locator("input[type='password']").fill(self.credentials["password"])
                 page.keyboard.press("Enter")
-                page.wait_for_load_state("networkidle")
-        except Exception:
+                print("[*] Đã ấn Đăng nhập, đang chờ trang phản hồi...")
+                page.wait_for_timeout(5000) # Đợi bắt buộc 5s để sang hẳn trang sau
+                try:
+                    page.wait_for_load_state("domcontentloaded", timeout=5000)
+                except:
+                    pass
+                
+                # Check for MFA / OTP after login
+                if page.locator("input[name*='otp'], input[name*='code'], input[id*='otp'], text='MFA', text='OTP', input[placeholder*='OTP']").is_visible(timeout=3000):
+                    print("[-] Phát hiện yêu cầu xác thực 2 bước (MFA/OTP)! Hãy tự nhập trên trình duyệt...")
+                    # Không raise Exception nữa để nhường quyền cho vòng lặp bên dưới chờ
+        except Exception as e:
             pass
 
     def _browser_fetch(self):
@@ -236,7 +257,8 @@ Text:
                     browser = p.chromium.connect_over_cdp(endpoint_url)
                     context = browser.contexts[0] if browser.contexts else browser.new_context()
                 except Exception:
-                    browser = p.chromium.launch(headless=True)
+                    print("[*] Đang mở trình duyệt mới (có giao diện) để bạn quan sát bot gõ phím...")
+                    browser = p.chromium.launch(headless=False, slow_mo=50)
                     launched_browser = True
                     context_args = {
                         "user_agent": self.headers["User-Agent"],
@@ -247,13 +269,32 @@ Text:
                     context = browser.new_context(**context_args)
 
                 page = context.new_page()
-                page.goto(self.target_url, wait_until="networkidle", timeout=30000)
+                page.goto(self.target_url, wait_until="domcontentloaded", timeout=30000)
                 self._simulate_human_behavior(page)
                 self._handle_login(page)
-                html = page.content()
+                try:
+                    page.wait_for_load_state("networkidle", timeout=5000)
+                except:
+                    pass
+                try:
+                    html = page.content()
+                except Exception as e:
+                    if "navigating" in str(e).lower():
+                        print("[*] Đang đợi trang tải hoàn tất...")
+                        page.wait_for_load_state("networkidle", timeout=10000)
+                        html = page.content()
+                    else:
+                        raise e
 
-                if self._detect_blocking_signals(html):
-                    raise Exception("HITL_REQUIRED")
+                # Đợi con người giải quyết Captcha/MFA
+                while self._detect_blocking_signals(html):
+                    print("[-] BỊ CHẶN (MFA/Captcha)! Bot đang tạm dừng...")
+                    print("[*] Vui lòng thao tác trên cửa sổ trình duyệt (Nhập OTP/Giải Captcha). Bot sẽ tự động kiểm tra lại sau mỗi 5s...")
+                    page.wait_for_timeout(5000)
+                    try:
+                        html = page.content()
+                    except:
+                        pass
 
                 context.storage_state(path=self.session_file)
                 page.close()
@@ -300,6 +341,10 @@ Text:
                 raise Exception("Could not parse WebGia SJC prices")
             except Exception as e:
                 print(f"[-] WebGia SJC attempt {attempt}/{self.max_retries} failed: {e}")
+                if "HITL_REQUIRED" in str(e):
+                    print(f"[!!!] CẦN CON NGƯỜI DUYỆT (HITL). Dừng thử lại! Lỗi: {e}")
+                    return {"sjc": source_result("failed", [], str(e))}
+                    
                 if attempt < self.max_retries:
                     time.sleep(attempt * random.randint(3, 7))
                 else:
