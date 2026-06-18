@@ -45,10 +45,6 @@ api_key.txt
 .env
 .env.local
 
-# Test and temporary files
-test_*.py
-*_backup.csv
-temp_backup.csv
 
 # Documentation markdown files (optional - remove if you want to keep them)
 test_date_fix.md
