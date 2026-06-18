@@ -45,31 +45,80 @@ def source_result(status: str, results: Optional[List[Dict]] = None, error: Opti
     }
 
 
-class SjcWebGiaCrawler:
+class GoldCrawler:
     """
-    Crawl SJC prices from WebGia.
-
-    The old HybridGoldCrawler behavior is kept here: requests + static parse first,
-    then Playwright and local AI fallback when the static page cannot be parsed.
+    Unified crawler for Gold prices from multiple sources: SJC (WebGia), DOJI, and PNJ.
     """
 
-    def __init__(self, use_ai_fallback: bool = True, profile_name: str = "default"):
-        self.target_url = "https://webgia.com/gia-vang/sjc/"
-        self.headers = DEFAULT_HEADERS.copy()
+    # DOJI static constants
+    AREA_MAP_DOJI = {
+        "ha noi": "Hanoi",
+        "hà nội": "Hanoi",
+        "da nang": "Da Nang",
+        "đà nẵng": "Da Nang",
+        "ho chi minh": "Ho Chi Minh City",
+        "hồ chí minh": "Ho Chi Minh City",
+    }
+
+    GOLD_TYPE_PATTERNS_DOJI = [
+        ("SJC - Bán Lẻ", ["sjc"]),
+        ("AVPL / Kim TT", ["avpl", "kim tt", "kim"]),
+        ("Nhẫn Tròn 9999", ["nhan tron", "nhẫn tròn", "hung thinh", "hưng thịnh"]),
+        ("Nữ trang 99.99", ["99.99", "9999"]),
+        ("Nữ trang 99.9", ["99.9", "999"]),
+        ("Nữ trang 99", ["99 -", " 99 "]),
+    ]
+
+    # PNJ static constants
+    PRIMARY_API_PNJ = "https://edge-cf-api.pnj.io"
+    FALLBACK_API_PNJ = "https://edge-api.pnj.io"
+    ENDPOINT_PNJ = "/ecom-frontend/v1/get-gold-price?zone={zone}"
+    PAGE_URL_PNJ = "https://www.pnj.com.vn/site/gia-vang"
+
+    ZONES_PNJ = {
+        "00": "Ho Chi Minh City",
+        "07": "Can Tho",
+        "11": "Hanoi",
+        "13": "Da Nang",
+        "14": "Tay Nguyen",
+        "21": "Dong Nam Bo",
+    }
+
+    def __init__(self, source: str, use_ai_fallback: bool = True, profile_name: str = "default"):
+        self.source = source.lower()
         self.use_ai_fallback = use_ai_fallback
-        self.ollama_url = "http://localhost:11434/api/generate"
-        self.ai_model = "gemma4:e2b"
         self.profile_name = profile_name
-        os.makedirs("sessions", exist_ok=True)
-        self.session_file = f"sessions/crawler_session_{self.profile_name}.json"
-        self.max_retries = 3
-        self.proxies = [None]
-        self.credentials = {
-            "username": os.environ.get("GOLD_SITE_USER", "default_user"),
-            "password": os.environ.get("GOLD_SITE_PASS", "default_pass"),
-        }
 
-    def _get_cookies_from_session(self):
+        if self.source in ["sjc", "webgia"]:
+            self.target_url = "https://webgia.com/gia-vang/sjc/"
+            self.headers = DEFAULT_HEADERS.copy()
+            self.ollama_url = "http://localhost:11434/api/generate"
+            self.ai_model = "gemma4:e2b"
+            os.makedirs("sessions", exist_ok=True)
+            self.session_file = f"sessions/crawler_session_{self.profile_name}.json"
+            self.max_retries = 3
+            self.proxies = [None]
+            self.credentials = {
+                "username": os.environ.get("GOLD_SITE_USER", "default_user"),
+                "password": os.environ.get("GOLD_SITE_PASS", "default_pass"),
+            }
+        elif self.source == "doji":
+            self.target_url = "https://giavang.doji.vn/"
+            self.headers = DEFAULT_HEADERS.copy()
+            self.max_retries = 2
+        elif self.source == "pnj":
+            self.headers = {
+                **DEFAULT_HEADERS,
+                "Accept": "application/json, text/plain, */*",
+                "Origin": "https://www.pnj.com.vn",
+                "Referer": self.PAGE_URL_PNJ,
+            }
+            self.max_retries = 2
+        else:
+            raise ValueError(f"Unknown source: {self.source}")
+
+    # === SJC (WebGia) Helpers ===
+    def _get_cookies_from_session_sjc(self):
         cookies_dict = {}
         if os.path.exists(self.session_file):
             try:
@@ -81,10 +130,10 @@ class SjcWebGiaCrawler:
                 print(f"[-] Cannot read session file: {e}")
         return cookies_dict
 
-    def _clean_price(self, price_str):
+    def _clean_price_sjc(self, price_str):
         return clean_price(price_str)
 
-    def _tier_1_static_parse(self, html):
+    def _tier_1_static_parse_sjc(self, html):
         print("[*] Applying WebGia static parser...")
         soup = BeautifulSoup(html or "", "html.parser")
         result = {}
@@ -110,8 +159,8 @@ class SjcWebGiaCrawler:
                 name_index, buy_index, sell_index = 0, 1, 2
 
             name = cols[name_index].get_text(" ", strip=True).lower()
-            buy = self._clean_price(cols[buy_index].get_text(" ", strip=True))
-            sell = self._clean_price(cols[sell_index].get_text(" ", strip=True))
+            buy = self._clean_price_sjc(cols[buy_index].get_text(" ", strip=True))
+            sell = self._clean_price_sjc(cols[sell_index].get_text(" ", strip=True))
 
             if buy is None and sell is None:
                 continue
@@ -140,7 +189,7 @@ class SjcWebGiaCrawler:
         print("[+] WebGia static parser succeeded")
         return result
 
-    def _tier_2_ai_fallback(self, html):
+    def _tier_2_ai_fallback_sjc(self, html):
         print("[!] WebGia static parse failed. Trying local AI fallback...")
         from bs4 import Comment
 
@@ -191,7 +240,7 @@ Text:
             print(f"[-] Ollama unavailable: {e}")
             return None
 
-    def _detect_blocking_signals(self, html, status_code=200):
+    def _detect_blocking_signals_sjc(self, html, status_code=200):
         if status_code in [403, 429, 503]:
             return True
         if not html:
@@ -210,13 +259,13 @@ Text:
                 
         return False
 
-    def _simulate_human_behavior(self, page):
+    def _simulate_human_behavior_sjc(self, page):
         page.mouse.move(random.randint(100, 500), random.randint(100, 500))
         page.wait_for_timeout(random.randint(500, 1500))
         page.mouse.wheel(0, random.randint(300, 800))
         page.wait_for_timeout(random.randint(1000, 2000))
 
-    def _handle_login(self, page):
+    def _handle_login_sjc(self, page):
         try:
             if page.locator("input[type='password']").is_visible(timeout=2000):
                 print("[!] Yêu cầu đăng nhập. Đang tự động điền thông tin bảo mật...")
@@ -236,11 +285,10 @@ Text:
                 # Check for MFA / OTP after login
                 if page.locator("input[name*='otp'], input[name*='code'], input[id*='otp'], text='MFA', text='OTP', input[placeholder*='OTP']").is_visible(timeout=3000):
                     print("[-] Phát hiện yêu cầu xác thực 2 bước (MFA/OTP)! Hãy tự nhập trên trình duyệt...")
-                    # Không raise Exception nữa để nhường quyền cho vòng lặp bên dưới chờ
         except Exception as e:
             pass
 
-    def _browser_fetch(self):
+    def _browser_fetch_sjc(self):
         print("[!] Starting Playwright fallback for WebGia...")
         try:
             from playwright.sync_api import sync_playwright
@@ -270,8 +318,8 @@ Text:
 
                 page = context.new_page()
                 page.goto(self.target_url, wait_until="domcontentloaded", timeout=30000)
-                self._simulate_human_behavior(page)
-                self._handle_login(page)
+                self._simulate_human_behavior_sjc(page)
+                self._handle_login_sjc(page)
                 try:
                     page.wait_for_load_state("networkidle", timeout=5000)
                 except:
@@ -287,7 +335,7 @@ Text:
                         raise e
 
                 # Đợi con người giải quyết Captcha/MFA
-                while self._detect_blocking_signals(html):
+                while self._detect_blocking_signals_sjc(html):
                     print("[-] BỊ CHẶN (MFA/Captcha)! Bot đang tạm dừng...")
                     print("[*] Vui lòng thao tác trên cửa sổ trình duyệt (Nhập OTP/Giải Captcha). Bot sẽ tự động kiểm tra lại sau mỗi 5s...")
                     page.wait_for_timeout(5000)
@@ -308,14 +356,14 @@ Text:
             print(f"[-] Playwright fallback failed: {e}")
             return None
 
-    def execute_crawling(self):
+    def _execute_crawling_sjc(self):
         print(f"[*] Crawling WebGia SJC: {self.target_url}")
 
         for attempt in range(1, self.max_retries + 1):
             try:
                 proxy = random.choice(self.proxies)
                 proxies_dict = {"http": proxy, "https": proxy} if proxy else None
-                cookies = self._get_cookies_from_session()
+                cookies = self._get_cookies_from_session_sjc()
 
                 response = requests.get(
                     self.target_url,
@@ -325,14 +373,14 @@ Text:
                     timeout=10,
                 )
 
-                if self._detect_blocking_signals(response.text, response.status_code):
-                    html = self._browser_fetch()
+                if self._detect_blocking_signals_sjc(response.text, response.status_code):
+                    html = self._browser_fetch_sjc()
                 else:
                     html = response.text
 
-                data = self._tier_1_static_parse(html)
+                data = self._tier_1_static_parse_sjc(html)
                 if data is None and self.use_ai_fallback:
-                    data = self._tier_2_ai_fallback(html)
+                    data = self._tier_2_ai_fallback_sjc(html)
 
                 if data:
                     data["datetime"] = int(datetime.now().timestamp())
@@ -350,47 +398,21 @@ Text:
                 else:
                     return {"sjc": source_result("failed", [], str(e))}
 
-
-class DojiCrawler:
-    """Crawl current DOJI gold prices from the official DOJI site."""
-
-    AREA_MAP = {
-        "ha noi": "Hanoi",
-        "hà nội": "Hanoi",
-        "da nang": "Da Nang",
-        "đà nẵng": "Da Nang",
-        "ho chi minh": "Ho Chi Minh City",
-        "hồ chí minh": "Ho Chi Minh City",
-    }
-
-    GOLD_TYPE_PATTERNS = [
-        ("SJC - Bán Lẻ", ["sjc"]),
-        ("AVPL / Kim TT", ["avpl", "kim tt", "kim"]),
-        ("Nhẫn Tròn 9999", ["nhan tron", "nhẫn tròn", "hung thinh", "hưng thịnh"]),
-        ("Nữ trang 99.99", ["99.99", "9999"]),
-        ("Nữ trang 99.9", ["99.9", "999"]),
-        ("Nữ trang 99", ["99 -", " 99 "]),
-    ]
-
-    def __init__(self):
-        self.target_url = "https://giavang.doji.vn/"
-        self.headers = DEFAULT_HEADERS.copy()
-        self.max_retries = 2
-
-    def _normalize_text(self, value: str) -> str:
+    # === DOJI Helpers ===
+    def _normalize_text_doji(self, value: str) -> str:
         return re.sub(r"\s+", " ", value or "").strip().lower()
 
-    def _map_gold_type(self, raw_name: str) -> Optional[str]:
-        normalized = self._normalize_text(raw_name)
-        for gold_type, patterns in self.GOLD_TYPE_PATTERNS:
+    def _map_gold_type_doji(self, raw_name: str) -> Optional[str]:
+        normalized = self._normalize_text_doji(raw_name)
+        for gold_type, patterns in self.GOLD_TYPE_PATTERNS_DOJI:
             if any(pattern in normalized for pattern in patterns):
                 return gold_type
         return None
 
-    def _looks_like_price(self, value: str) -> bool:
+    def _looks_like_price_doji(self, value: str) -> bool:
         return clean_price(value) is not None
 
-    def _parse_rows_from_text(self, html: str) -> List[Dict]:
+    def _parse_rows_from_text_doji(self, html: str) -> List[Dict]:
         soup = BeautifulSoup(html or "", "html.parser")
         text = soup.get_text("\n", strip=True)
         lines = [line.strip() for line in text.splitlines() if line.strip()]
@@ -399,10 +421,10 @@ class DojiCrawler:
         timestamp = int(datetime.now().timestamp())
 
         for line in lines:
-            lower = self._normalize_text(line)
+            lower = self._normalize_text_doji(line)
             if "bang gia tai" in lower or "bảng giá tại" in lower:
                 current_location = None
-                for marker, location in self.AREA_MAP.items():
+                for marker, location in self.AREA_MAP_DOJI.items():
                     if marker in lower:
                         current_location = location
                         break
@@ -416,7 +438,7 @@ class DojiCrawler:
                 continue
 
             raw_name, raw_buy, raw_sell = match.groups()
-            gold_type = self._map_gold_type(raw_name)
+            gold_type = self._map_gold_type_doji(raw_name)
             buy = clean_price(raw_buy)
             sell = clean_price(raw_sell)
 
@@ -435,7 +457,7 @@ class DojiCrawler:
 
         return records
 
-    def _parse_rows_from_tables(self, html: str) -> List[Dict]:
+    def _parse_rows_from_tables_doji(self, html: str) -> List[Dict]:
         soup = BeautifulSoup(html or "", "html.parser")
         records = []
         timestamp = int(datetime.now().timestamp())
@@ -447,7 +469,7 @@ class DojiCrawler:
             if previous:
                 heading_text = previous.get_text(" ", strip=True).lower()
 
-            for marker, mapped in self.AREA_MAP.items():
+            for marker, mapped in self.AREA_MAP_DOJI.items():
                 if marker in heading_text:
                     location = mapped
                     break
@@ -461,7 +483,7 @@ class DojiCrawler:
                     continue
 
                 raw_name, raw_buy, raw_sell = cells[0], cells[1], cells[2]
-                gold_type = self._map_gold_type(raw_name)
+                gold_type = self._map_gold_type_doji(raw_name)
                 buy = clean_price(raw_buy)
                 sell = clean_price(raw_sell)
 
@@ -480,10 +502,10 @@ class DojiCrawler:
 
         return records
 
-    def _parse(self, html: str) -> List[Dict]:
-        records = self._parse_rows_from_tables(html)
+    def _parse_doji(self, html: str) -> List[Dict]:
+        records = self._parse_rows_from_tables_doji(html)
         if not records:
-            records = self._parse_rows_from_text(html)
+            records = self._parse_rows_from_text_doji(html)
 
         unique = {}
         for record in records:
@@ -491,14 +513,14 @@ class DojiCrawler:
             unique[key] = record
         return list(unique.values())
 
-    def execute_crawling(self):
+    def _execute_crawling_doji(self):
         print(f"[*] Crawling DOJI: {self.target_url}")
 
         for attempt in range(1, self.max_retries + 1):
             try:
                 response = requests.get(self.target_url, headers=self.headers, timeout=15)
                 response.raise_for_status()
-                records = self._parse(response.text)
+                records = self._parse_doji(response.text)
 
                 if not records:
                     raise Exception("Could not parse DOJI prices")
@@ -512,34 +534,8 @@ class DojiCrawler:
                 else:
                     return {"doji": source_result("failed", [], str(e))}
 
-
-class PnjCrawler:
-    """Crawl current PNJ gold prices from the PNJ public API used by the PNJ site."""
-
-    PRIMARY_API = "https://edge-cf-api.pnj.io"
-    FALLBACK_API = "https://edge-api.pnj.io"
-    ENDPOINT = "/ecom-frontend/v1/get-gold-price?zone={zone}"
-    PAGE_URL = "https://www.pnj.com.vn/site/gia-vang"
-
-    ZONES = {
-        "00": "Ho Chi Minh City",
-        "07": "Can Tho",
-        "11": "Hanoi",
-        "13": "Da Nang",
-        "14": "Tay Nguyen",
-        "21": "Dong Nam Bo",
-    }
-
-    def __init__(self):
-        self.headers = {
-            **DEFAULT_HEADERS,
-            "Accept": "application/json, text/plain, */*",
-            "Origin": "https://www.pnj.com.vn",
-            "Referer": self.PAGE_URL,
-        }
-        self.max_retries = 2
-
-    def _normalize_api_price(self, value) -> Optional[int]:
+    # === PNJ Helpers ===
+    def _normalize_api_price_pnj(self, value) -> Optional[int]:
         if value is None or value == "":
             return None
         try:
@@ -552,31 +548,31 @@ class PnjCrawler:
             numeric *= 1000
         return int(numeric)
 
-    def _fetch_zone_from_domain(self, domain: str, zone: str) -> Dict:
-        url = domain + self.ENDPOINT.format(zone=zone)
+    def _fetch_zone_from_domain_pnj(self, domain: str, zone: str) -> Dict:
+        url = domain + self.ENDPOINT_PNJ.format(zone=zone)
         response = requests.get(url, headers=self.headers, timeout=15)
         response.raise_for_status()
         return response.json()
 
-    def _fetch_zone(self, zone: str) -> Dict:
+    def _fetch_zone_pnj(self, zone: str) -> Dict:
         last_error = None
-        for domain in [self.PRIMARY_API, self.FALLBACK_API]:
+        for domain in [self.PRIMARY_API_PNJ, self.FALLBACK_API_PNJ]:
             try:
-                return self._fetch_zone_from_domain(domain, zone)
+                return self._fetch_zone_from_domain_pnj(domain, zone)
             except Exception as e:
                 last_error = e
                 print(f"[-] PNJ API failed for zone {zone} on {domain}: {e}")
         raise last_error or Exception(f"PNJ API failed for zone {zone}")
 
-    def _parse_api_data(self, zone: str, payload: Dict) -> List[Dict]:
+    def _parse_api_data_pnj(self, zone: str, payload: Dict) -> List[Dict]:
         records = []
         timestamp = int(datetime.now().timestamp())
-        location = self.ZONES.get(zone, zone)
+        location = self.ZONES_PNJ.get(zone, zone)
 
         for item in payload.get("data") or []:
             gold_type = item.get("tensp") or item.get("name") or item.get("masp")
-            buy = self._normalize_api_price(item.get("giamua"))
-            sell = self._normalize_api_price(item.get("giaban"))
+            buy = self._normalize_api_price_pnj(item.get("giamua"))
+            sell = self._normalize_api_price_pnj(item.get("giaban"))
 
             if not gold_type or (buy is None and sell is None):
                 continue
@@ -588,12 +584,12 @@ class PnjCrawler:
                 "buy_price": buy,
                 "sell_price": sell,
                 "location": location,
-                "source": self.PAGE_URL,
+                "source": self.PAGE_URL_PNJ,
             })
 
         return records
 
-    def _browser_fetch(self) -> List[Dict]:
+    def _browser_fetch_pnj(self) -> List[Dict]:
         """Fallback for cases where the PNJ API domains reject direct requests."""
         print("[!] Starting Playwright fallback for PNJ...")
         records = []
@@ -606,9 +602,9 @@ class PnjCrawler:
                     user_agent=DEFAULT_HEADERS["User-Agent"],
                     viewport={"width": 1440, "height": 1000},
                 )
-                page.goto(self.PAGE_URL, wait_until="networkidle", timeout=45000)
+                page.goto(self.PAGE_URL_PNJ, wait_until="networkidle", timeout=45000)
 
-                for zone, location in self.ZONES.items():
+                for zone, location in self.ZONES_PNJ.items():
                     page.locator("select").first.select_option(zone)
                     page.wait_for_timeout(1200)
                     text = page.locator("body").inner_text(timeout=10000)
@@ -622,8 +618,8 @@ class PnjCrawler:
                         numbers = re.findall(r"\d{1,3}(?:[,.]\d{3})+|\d{4,6}", window)
                         if len(numbers) < 2:
                             continue
-                        buy = self._normalize_api_price(numbers[0])
-                        sell = self._normalize_api_price(numbers[1])
+                        buy = self._normalize_api_price_pnj(numbers[0])
+                        sell = self._normalize_api_price_pnj(numbers[1])
                         records.append({
                             "datetime": timestamp,
                             "company": "PNJ",
@@ -631,7 +627,7 @@ class PnjCrawler:
                             "buy_price": buy,
                             "sell_price": sell,
                             "location": location,
-                            "source": self.PAGE_URL,
+                            "source": self.PAGE_URL_PNJ,
                         })
 
                 browser.close()
@@ -643,15 +639,15 @@ class PnjCrawler:
             unique[(record["location"], record["gold_type"])] = record
         return list(unique.values())
 
-    def execute_crawling(self):
-        print(f"[*] Crawling PNJ: {self.PAGE_URL}")
+    def _execute_crawling_pnj(self):
+        print(f"[*] Crawling PNJ: {self.PAGE_URL_PNJ}")
 
         for attempt in range(1, self.max_retries + 1):
             try:
                 records = []
-                for zone in self.ZONES:
-                    payload = self._fetch_zone(zone)
-                    records.extend(self._parse_api_data(zone, payload))
+                for zone in self.ZONES_PNJ:
+                    payload = self._fetch_zone_pnj(zone)
+                    records.extend(self._parse_api_data_pnj(zone, payload))
 
                 if not records:
                     raise Exception("Could not parse PNJ prices")
@@ -663,11 +659,113 @@ class PnjCrawler:
                 if attempt < self.max_retries:
                     time.sleep(2)
                 else:
-                    records = self._browser_fetch()
+                    records = self._browser_fetch_pnj()
                     if records:
                         print(f"[+] PNJ Playwright fallback collected {len(records)} rows")
                         return {"pnj": source_result("ok", records)}
                     return {"pnj": source_result("failed", [], str(e))}
+
+    def execute_crawling(self):
+        if self.source in ["sjc", "webgia"]:
+            return self._execute_crawling_sjc()
+        elif self.source == "doji":
+            return self._execute_crawling_doji()
+        elif self.source == "pnj":
+            return self._execute_crawling_pnj()
+        else:
+            raise ValueError(f"Unknown source: {self.source}")
+
+
+class SjcWebGiaCrawler(GoldCrawler):
+    """
+    Backward-compatible SjcWebGiaCrawler.
+    """
+    def __init__(self, use_ai_fallback: bool = True, profile_name: str = "default"):
+        super().__init__(source="sjc", use_ai_fallback=use_ai_fallback, profile_name=profile_name)
+
+    def _get_cookies_from_session(self):
+        return self._get_cookies_from_session_sjc()
+
+    def _clean_price(self, price_str):
+        return self._clean_price_sjc(price_str)
+
+    def _tier_1_static_parse(self, html):
+        return self._tier_1_static_parse_sjc(html)
+
+    def _tier_2_ai_fallback(self, html):
+        return self._tier_2_ai_fallback_sjc(html)
+
+    def _detect_blocking_signals(self, html, status_code=200):
+        return self._detect_blocking_signals_sjc(html, status_code)
+
+    def _simulate_human_behavior(self, page):
+        return self._simulate_human_behavior_sjc(page)
+
+    def _handle_login(self, page):
+        return self._handle_login_sjc(page)
+
+    def _browser_fetch(self):
+        return self._browser_fetch_sjc()
+
+
+class DojiCrawler(GoldCrawler):
+    """
+    Backward-compatible DojiCrawler.
+    """
+    def __init__(self):
+        super().__init__(source="doji")
+
+    # DOJI static constants mapping
+    AREA_MAP = GoldCrawler.AREA_MAP_DOJI
+    GOLD_TYPE_PATTERNS = GoldCrawler.GOLD_TYPE_PATTERNS_DOJI
+
+    def _normalize_text(self, value: str) -> str:
+        return self._normalize_text_doji(value)
+
+    def _map_gold_type(self, raw_name: str) -> Optional[str]:
+        return self._map_gold_type_doji(raw_name)
+
+    def _looks_like_price(self, value: str) -> bool:
+        return self._looks_like_price_doji(value)
+
+    def _parse_rows_from_text(self, html: str) -> List[Dict]:
+        return self._parse_rows_from_text_doji(html)
+
+    def _parse_rows_from_tables(self, html: str) -> List[Dict]:
+        return self._parse_rows_from_tables_doji(html)
+
+    def _parse(self, html: str) -> List[Dict]:
+        return self._parse_doji(html)
+
+
+class PnjCrawler(GoldCrawler):
+    """
+    Backward-compatible PnjCrawler.
+    """
+    def __init__(self):
+        super().__init__(source="pnj")
+
+    # PNJ static constants mapping
+    PRIMARY_API = GoldCrawler.PRIMARY_API_PNJ
+    FALLBACK_API = GoldCrawler.FALLBACK_API_PNJ
+    ENDPOINT = GoldCrawler.ENDPOINT_PNJ
+    PAGE_URL = GoldCrawler.PAGE_URL_PNJ
+    ZONES = GoldCrawler.ZONES_PNJ
+
+    def _normalize_api_price(self, value) -> Optional[int]:
+        return self._normalize_api_price_pnj(value)
+
+    def _fetch_zone_from_domain(self, domain: str, zone: str) -> Dict:
+        return self._fetch_zone_from_domain_pnj(domain, zone)
+
+    def _fetch_zone(self, zone: str) -> Dict:
+        return self._fetch_zone_pnj(zone)
+
+    def _parse_api_data(self, zone: str, payload: Dict) -> List[Dict]:
+        return self._parse_api_data_pnj(zone, payload)
+
+    def _browser_fetch(self) -> List[Dict]:
+        return self._browser_fetch_pnj()
 
 
 class MultiSourceGoldCrawler:

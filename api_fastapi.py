@@ -13,6 +13,11 @@ import requests
 import os
 import asyncio
 import json
+import threading
+import uuid
+from concurrent.futures import ThreadPoolExecutor
+
+from login_test_runner import resolve_target, run_login_test
 
 # Import modules
 try:
@@ -104,6 +109,105 @@ def successful_sources(current_data: Optional[Dict[str, Any]]) -> Dict[str, List
             data[source_name] = results
     return data
 
+
+def safe_session_metadata(session_dir: str = "sessions") -> List[Dict[str, Any]]:
+    """Return safe session metadata without exposing cookie values or secrets."""
+    sessions = []
+    if not os.path.isdir(session_dir):
+        return sessions
+
+    for filename in sorted(os.listdir(session_dir)):
+        if not filename.endswith(".json"):
+            continue
+
+        path = os.path.join(session_dir, filename)
+        try:
+            stat = os.stat(path)
+            with open(path, "r", encoding="utf-8") as handle:
+                payload = json.load(handle)
+        except Exception as e:
+            sessions.append({
+                "session_name": filename.replace("crawler_session_", "").replace(".json", ""),
+                "source": "unknown",
+                "topic": "Unknown",
+                "login_status": "unreadable",
+                "last_used": None,
+                "mfa_required": "unknown",
+                "session_file": filename,
+                "status": "error",
+                "cookie_count": 0,
+                "origin_count": 0,
+                "domains": [],
+                "message": f"Cannot read session metadata: {e}",
+            })
+            continue
+
+        cookies = payload.get("cookies") if isinstance(payload, dict) else []
+        origins = payload.get("origins") if isinstance(payload, dict) else []
+        cookies = cookies if isinstance(cookies, list) else []
+        origins = origins if isinstance(origins, list) else []
+        domains = sorted({
+            str(cookie.get("domain", "")).lstrip(".")
+            for cookie in cookies
+            if isinstance(cookie, dict) and cookie.get("domain")
+        })
+        profile_name = filename.replace("crawler_session_", "").replace(".json", "")
+
+        sessions.append({
+            "session_name": profile_name,
+            "source": ", ".join(domains) if domains else "N/A",
+            "topic": "Crawler Session",
+            "login_status": "stored" if cookies else "empty",
+            "last_used": datetime.fromtimestamp(stat.st_mtime).isoformat(),
+            "mfa_required": "unknown",
+            "session_file": filename,
+            "status": "available" if cookies else "empty",
+            "cookie_count": len(cookies),
+            "origin_count": len(origins),
+            "domains": domains,
+            "message": "Safe metadata only. Cookie values are hidden.",
+        })
+
+    return sessions
+
+
+def source_job_from_payload(source_name: str, payload: Dict[str, Any], timestamp: str) -> Dict[str, Any]:
+    source_upper = source_name.upper()
+    results = payload.get("results") if isinstance(payload, dict) else []
+    results = results if isinstance(results, list) else []
+    status = payload.get("status", "empty") if isinstance(payload, dict) else "empty"
+    error = payload.get("error") if isinstance(payload, dict) else None
+
+    if status == "ok":
+        job_status = "completed"
+        progress = 100
+    elif status == "failed":
+        job_status = "failed"
+        progress = 0
+    else:
+        job_status = "empty"
+        progress = 0
+
+    target_sites = {
+        "sjc": "webgia.com / sjc.com.vn",
+        "doji": "giavang.doji.vn",
+        "pnj": "pnj.com.vn/site/gia-vang",
+    }
+
+    return {
+        "job_name": f"Gold Price {source_upper}",
+        "target_site": target_sites.get(source_name, source_name),
+        "profile": "crawler_session_default",
+        "status": job_status,
+        "source_status": status,
+        "progress": progress,
+        "records": len(results),
+        "topic": "Gold Price",
+        "source": source_upper,
+        "last_run": timestamp,
+        "message": error or ("Backend source returned records." if results else "No records returned."),
+    }
+
 # WebSocket Connection Manager
 class ConnectionManager:
     """Manage WebSocket connections and broadcast messages"""
@@ -191,6 +295,136 @@ class ConnectionManager:
 
 # Initialize connection manager
 manager = ConnectionManager()
+
+
+login_test_executor = ThreadPoolExecutor(max_workers=1)
+login_test_lock = threading.Lock()
+login_test_jobs: Dict[str, Dict[str, Any]] = {}
+hitl_cases: Dict[str, Dict[str, Any]] = {}
+
+
+def public_login_job(job: Dict[str, Any]) -> Dict[str, Any]:
+    return {
+        "job_id": job.get("job_id"),
+        "status": job.get("status"),
+        "target_type": job.get("target_type"),
+        "target_label": job.get("target_label"),
+        "target_url": job.get("target_url"),
+        "profile_name": job.get("profile_name"),
+        "created_at": job.get("created_at"),
+        "started_at": job.get("started_at"),
+        "ended_at": job.get("ended_at"),
+        "html_length": job.get("html_length"),
+        "output_file": job.get("output_file"),
+        "latest_signal": job.get("latest_signal"),
+        "log_count": len(job.get("logs", [])),
+        "username_provided": job.get("username_provided", False),
+    }
+
+
+def ensure_hitl_case(job_id: str, signal_type: str, message: str) -> None:
+    case_id = f"{job_id}-{signal_type}"
+    now = datetime.now().isoformat()
+    existing = hitl_cases.get(case_id)
+    if existing:
+        existing["message"] = message
+        existing["updated_at"] = now
+        if existing.get("status") == "resolved":
+            existing["status"] = "open"
+        return
+
+    reason_map = {
+        "mfa_required": "MFA Required",
+        "captcha_detected": "CAPTCHA Detected",
+        "access_denied": "Access Denied",
+        "timeout": "Timeout",
+        "browser_error": "Browser Error",
+        "browser_event": "Browser Event",
+    }
+    severity_map = {
+        "mfa_required": "medium",
+        "captcha_detected": "high",
+        "access_denied": "critical",
+        "timeout": "medium",
+        "browser_error": "high",
+        "browser_event": "info",
+    }
+    job = login_test_jobs.get(job_id, {})
+    hitl_cases[case_id] = {
+        "case_id": case_id,
+        "job_id": job_id,
+        "topic": "Login Test",
+        "source": job.get("target_label") or job.get("target_url") or "Login target",
+        "reason": reason_map.get(signal_type, signal_type.replace("_", " ").title()),
+        "signal_type": signal_type,
+        "severity": severity_map.get(signal_type, "info"),
+        "message": message,
+        "status": "open",
+        "created_at": now,
+        "updated_at": now,
+        "action": "Human approval required",
+    }
+
+
+def add_login_job_log(job_id: str, level: str, message: str, signal_type: Optional[str] = None) -> None:
+    with login_test_lock:
+        job = login_test_jobs.get(job_id)
+        if not job:
+            return
+        entry = {
+            "timestamp": datetime.now().isoformat(),
+            "level": level,
+            "message": message,
+            "signal_type": signal_type,
+        }
+        job.setdefault("logs", []).append(entry)
+        if signal_type:
+            job["latest_signal"] = signal_type
+            ensure_hitl_case(job_id, signal_type, message)
+
+
+def resolve_open_cases_for_job(job_id: str) -> None:
+    for case in hitl_cases.values():
+        if case.get("job_id") == job_id and case.get("status") == "open":
+            case["status"] = "resolved"
+            case["action"] = "Resolved by completed login test"
+            case["updated_at"] = datetime.now().isoformat()
+
+
+def run_login_job(job_id: str, username: str, password: str) -> None:
+    with login_test_lock:
+        job = login_test_jobs.get(job_id)
+        if not job:
+            return
+        job["status"] = "running"
+        job["started_at"] = datetime.now().isoformat()
+
+    try:
+        result = run_login_test(
+            job_id=job_id,
+            target_type=job["target_type"],
+            target_url=job.get("target_url"),
+            username=username,
+            password=password,
+            profile_name=job.get("profile_name") or "default",
+            emit=lambda level, message, signal_type=None: add_login_job_log(
+                job_id, level, message, signal_type
+            ),
+        )
+        with login_test_lock:
+            job = login_test_jobs.get(job_id)
+            if job:
+                job.update(result)
+                if result.get("status") == "completed":
+                    resolve_open_cases_for_job(job_id)
+    except Exception as e:
+        add_login_job_log(job_id, "error", f"Login test failed: {e}", "browser_error")
+        with login_test_lock:
+            job = login_test_jobs.get(job_id)
+            if job:
+                job["status"] = "failed"
+                job["ended_at"] = datetime.now().isoformat()
+
 
 # Background task to check for price updates
 async def background_price_checker():
@@ -283,6 +517,14 @@ class TrendResponse(BaseModel):
     trends: Dict[str, Any]
     moving_average: Optional[Dict[str, Any]] = None
 
+
+class LoginTestRequest(BaseModel):
+    target_type: str = "demo"
+    target_url: Optional[str] = None
+    username: str
+    password: str
+    profile_name: str = "default"
+
 # Health check endpoint
 @app.get("/")
 async def root():
@@ -329,11 +571,161 @@ async def get_current_prices(save_to_csv: bool = Query(True, description="Save c
         except Exception as e:
             print(f"Error saving to CSV: {e}")
 
-    return {
+    prices = {
         'timestamp': datetime.now().isoformat(),
         'sjc': current_data.get('sjc', empty_source('Missing SJC payload')),
         'doji': current_data.get('doji', empty_source('Missing DOJI payload')),
         'pnj': current_data.get('pnj', empty_source('Missing PNJ payload')),
+    }
+    manager.last_prices = {
+        'sjc': prices['sjc'],
+        'doji': prices['doji'],
+        'pnj': prices['pnj'],
+    }
+    return prices
+
+
+@app.get("/api/sessions")
+async def get_sessions():
+    """Return safe crawler session metadata without cookie values, tokens, or secrets."""
+    sessions = safe_session_metadata()
+    return {
+        "timestamp": datetime.now().isoformat(),
+        "count": len(sessions),
+        "sessions": sessions,
+        "security": "Cookie values, tokens, and credentials are never returned by this endpoint.",
+    }
+
+
+@app.get("/api/crawl-jobs")
+async def get_crawl_jobs(refresh: bool = Query(False, description="Refresh current source status before building jobs")):
+    """Return crawl job status derived from real crawler source payloads."""
+    timestamp = datetime.now().isoformat()
+    prices = manager.last_prices
+
+    if (refresh or not prices) and collector:
+        current_data = collector.collect_current_prices()
+        prices = {
+            'sjc': current_data.get('sjc', empty_source('Missing SJC payload')),
+            'doji': current_data.get('doji', empty_source('Missing DOJI payload')),
+            'pnj': current_data.get('pnj', empty_source('Missing PNJ payload')),
+        }
+        manager.last_prices = prices
+
+    prices = prices or {
+        'sjc': empty_source('No crawler snapshot available yet'),
+        'doji': empty_source('No crawler snapshot available yet'),
+        'pnj': empty_source('No crawler snapshot available yet'),
+    }
+
+    jobs = [
+        source_job_from_payload('sjc', prices.get('sjc', empty_source('Missing SJC payload')), timestamp),
+        source_job_from_payload('doji', prices.get('doji', empty_source('Missing DOJI payload')), timestamp),
+        source_job_from_payload('pnj', prices.get('pnj', empty_source('Missing PNJ payload')), timestamp),
+    ]
+
+    return {
+        "timestamp": timestamp,
+        "count": len(jobs),
+        "jobs": jobs,
+    }
+
+
+@app.post("/api/login-tests")
+async def create_login_test(payload: LoginTestRequest):
+    """Start a background login test and expose safe logs for HITL review."""
+    try:
+        target = resolve_target(payload.target_type, payload.target_url)
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e))
+
+    if not payload.username.strip():
+        raise HTTPException(status_code=400, detail="Username is required")
+    if not payload.password:
+        raise HTTPException(status_code=400, detail="Password is required")
+
+    job_id = uuid.uuid4().hex
+    now = datetime.now().isoformat()
+    job = {
+        "job_id": job_id,
+        "status": "queued",
+        "target_type": payload.target_type,
+        "target_label": target["label"],
+        "target_url": target["url"],
+        "profile_name": payload.profile_name or "default",
+        "created_at": now,
+        "started_at": None,
+        "ended_at": None,
+        "html_length": None,
+        "output_file": None,
+        "latest_signal": None,
+        "username_provided": True,
+        "logs": [
+            {
+                "timestamp": now,
+                "level": "info",
+                "message": "Login test queued. Password is hidden and will not be stored.",
+                "signal_type": None,
+            }
+        ],
+    }
+    with login_test_lock:
+        login_test_jobs[job_id] = job
+
+    login_test_executor.submit(run_login_job, job_id, payload.username, payload.password)
+    return public_login_job(job)
+
+
+@app.get("/api/login-tests")
+async def list_login_tests():
+    """List login test jobs without credentials."""
+    with login_test_lock:
+        jobs = [public_login_job(job) for job in login_test_jobs.values()]
+    jobs.sort(key=lambda item: item.get("created_at") or "", reverse=True)
+    return {
+        "timestamp": datetime.now().isoformat(),
+        "count": len(jobs),
+        "jobs": jobs,
+    }
+
+
+@app.get("/api/login-tests/{job_id}")
+async def get_login_test(job_id: str):
+    """Get one login test job without credentials."""
+    with login_test_lock:
+        job = login_test_jobs.get(job_id)
+        if not job:
+            raise HTTPException(status_code=404, detail="Login test job not found")
+        return public_login_job(job)
+
+
+@app.get("/api/login-tests/{job_id}/logs")
+async def get_login_test_logs(job_id: str):
+    """Get safe logs for a login test job."""
+    with login_test_lock:
+        job = login_test_jobs.get(job_id)
+        if not job:
+            raise HTTPException(status_code=404, detail="Login test job not found")
+        return {
+            "job_id": job_id,
+            "count": len(job.get("logs", [])),
+            "logs": list(job.get("logs", [])),
+        }
+
+
+@app.get("/api/hitl/cases")
+async def get_hitl_cases():
+    """Return HITL cases raised by login tests."""
+    with login_test_lock:
+        cases = list(hitl_cases.values())
+    cases.sort(key=lambda item: item.get("updated_at") or item.get("created_at") or "", reverse=True)
+    open_count = sum(1 for case in cases if case.get("status") == "open")
+    return {
+        "timestamp": datetime.now().isoformat(),
+        "count": len(cases),
+        "open_count": open_count,
+        "cases": cases,
+        "warning": "Continue only when this crawl is authorized and compliant with the target website policy.",
     }
 
 @app.post("/api/update-historical-data")
