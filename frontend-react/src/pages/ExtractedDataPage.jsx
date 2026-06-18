@@ -2,6 +2,7 @@ import { Navigate, Route, Routes } from "react-router-dom";
 import TopicDashboardLayout from "../components/extracted-data/TopicDashboardLayout";
 import EmptyState from "../components/common/EmptyState";
 import GoldPricePage from "./GoldPricePage";
+import HousePricePage from "./HousePricePage";
 
 const topicMessages = {
   "house-price": {
@@ -40,7 +41,7 @@ export default function ExtractedDataPage() {
       <Routes>
         <Route index element={<Navigate to="gold-price" replace />} />
         <Route path="gold-price" element={<GoldPricePage />} />
-        <Route path="house-price" element={<MissingTopic topic="house-price" />} />
+        <Route path="house-price" element={<HousePricePage />} />
         <Route path="stock-price" element={<MissingTopic topic="stock-price" />} />
         <Route path="crypto-price" element={<MissingTopic topic="crypto-price" />} />
         <Route path="forex-rate" element={<MissingTopic topic="forex-rate" />} />

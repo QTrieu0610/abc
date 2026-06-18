@@ -585,6 +585,34 @@ async def get_current_prices(save_to_csv: bool = Query(True, description="Save c
     return prices
 
 
+@app.get("/api/house-prices")
+async def get_house_prices(
+    max_pages: int = Query(1, ge=1, le=5, description="Number of listing pages to crawl per source"),
+    use_browser_fallback: bool = Query(False, description="Use Playwright if static HTML fetch is blocked"),
+):
+    """Get current real-estate listing prices from configured housing sources."""
+    try:
+        from ai_crawler_engine import MultiSourceRealEstateCrawler
+
+        crawler = MultiSourceRealEstateCrawler(
+            max_pages=max_pages,
+            use_browser_fallback=use_browser_fallback,
+        )
+        current_data = crawler.execute_crawling()
+    except Exception as e:
+        current_data = {
+            "batdongsan": empty_source(str(e)),
+            "alonhadat": empty_source(str(e)),
+        }
+
+    return {
+        "timestamp": datetime.now().isoformat(),
+        "topic": "house-price",
+        "batdongsan": current_data.get("batdongsan", empty_source("Missing Batdongsan payload")),
+        "alonhadat": current_data.get("alonhadat", empty_source("Missing AloNhaDat payload")),
+    }
+
+
 @app.get("/api/sessions")
 async def get_sessions():
     """Return safe crawler session metadata without cookie values, tokens, or secrets."""

@@ -1,6 +1,7 @@
 import contextlib
 import io
 import os
+import sys
 from datetime import datetime
 from typing import Callable, Dict, Optional
 
@@ -47,9 +48,17 @@ def classify_signal(message: str) -> Optional[str]:
 
 
 class LogCapture(io.TextIOBase):
-    def __init__(self, emit: Callable[[str, str, Optional[str]], None], redactions: Dict[str, str]):
+    def __init__(
+        self,
+        emit: Callable[[str, str, Optional[str]], None],
+        redactions: Dict[str, str],
+        output_stream,
+        error_stream,
+    ):
         self.emit = emit
         self.redactions = redactions
+        self.output_stream = output_stream
+        self.error_stream = error_stream
         self.buffer = ""
 
     def writable(self):
@@ -76,7 +85,8 @@ class LogCapture(io.TextIOBase):
                 message = message.replace(secret, replacement)
         signal_type = classify_signal(message)
         level = "warning" if signal_type else "info"
-        self.emit(level, message, signal_type)
+        with contextlib.redirect_stdout(self.output_stream), contextlib.redirect_stderr(self.error_stream):
+            self.emit(level, message, signal_type)
 
 
 def run_login_test(
@@ -107,7 +117,7 @@ def run_login_test(
 
     output_file = None
     html = None
-    capture = LogCapture(emit, redactions)
+    capture = LogCapture(emit, redactions, sys.stdout, sys.stderr)
 
     with contextlib.redirect_stdout(capture), contextlib.redirect_stderr(capture):
         html = crawler._browser_fetch()

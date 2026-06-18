@@ -11,9 +11,10 @@ import {
   TimerReset,
   UserCheck,
 } from "lucide-react";
-import { useCallback, useMemo } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import { getCrawlJobs } from "../api/crawlJobApi";
 import { getHealth } from "../api/crawlerApi";
+import { getHousePrices } from "../api/extractedDataApi";
 import {
   getAvailableGoldDates,
   getCurrentGoldPrices,
@@ -32,7 +33,7 @@ import RefreshButton from "../components/common/RefreshButton";
 import StatusBadge from "../components/common/StatusBadge";
 import DataTable from "../components/tables/DataTable";
 import { useAutoRefresh } from "../hooks/useAutoRefresh";
-import { formatDateTime } from "../utils/format";
+import { formatDateTime, formatVNDWithUnit } from "../utils/format";
 import { getSourceStatuses, normalizeGoldPriceResponse } from "../utils/goldMapper";
 
 async function settle(name, promise) {
@@ -149,22 +150,74 @@ function NotConnectedCard({ title, message }) {
   );
 }
 
+function normalizeHousePriceResponse(data) {
+  const sources = ["batdongsan", "alonhadat"];
+  return sources.flatMap((source) => {
+    const payload = data?.[source];
+    const rows = Array.isArray(payload?.results) ? payload.results : [];
+    return rows.map((row, index) => ({
+      id: `${source}-${row.url || row.title || index}`,
+      source,
+      title: row.title || "Untitled listing",
+      price: row.price ?? null,
+      priceText: row.price_text || null,
+      areaM2: row.area_m2 ?? null,
+      pricePerM2: row.price_per_m2 ?? null,
+      location: row.location || "N/A",
+      url: row.url || null,
+    }));
+  });
+}
+
+function getHouseSourceStatuses(data) {
+  return {
+    batdongsan: data?.batdongsan?.status || "empty",
+    alonhadat: data?.alonhadat?.status || "empty",
+  };
+}
+
+function median(values) {
+  const numbers = values.filter((value) => Number.isFinite(Number(value))).map(Number).sort((a, b) => a - b);
+  if (!numbers.length) return null;
+  const middle = Math.floor(numbers.length / 2);
+  return numbers.length % 2 ? numbers[middle] : (numbers[middle - 1] + numbers[middle]) / 2;
+}
+
+const topicOptions = [
+  { value: "gold-price", label: "Gold Price" },
+  { value: "house-price", label: "House Price" },
+];
+
 export default function OverviewPage() {
+  const [selectedTopic, setSelectedTopic] = useState("gold-price");
+
   const fetchOverview = useCallback(async () => {
+    const topicRequests =
+      selectedTopic === "house-price"
+        ? [
+            settle("housePrices", getHousePrices({ max_pages: 1, use_browser_fallback: false })),
+            settle("availableDates", Promise.resolve(null)),
+            settle("trends", Promise.resolve(null)),
+            settle("sourceMomentum", Promise.resolve(null)),
+          ]
+        : [
+            settle("currentPrices", getCurrentGoldPrices()),
+            settle("availableDates", getAvailableGoldDates()),
+            settle(
+              "trends",
+              getGoldTrends({
+                company: "SJC",
+                period: "monthly",
+                gold_type: "SJC 1L",
+                location: "National",
+              })
+            ),
+            settle("sourceMomentum", getSourceMomentum("main")),
+          ];
+
     const results = await Promise.all([
       settle("health", getHealth()),
-      settle("currentPrices", getCurrentGoldPrices()),
-      settle("availableDates", getAvailableGoldDates()),
-      settle(
-        "trends",
-        getGoldTrends({
-          company: "SJC",
-          period: "monthly",
-          gold_type: "SJC 1L",
-          location: "National",
-        })
-      ),
-      settle("sourceMomentum", getSourceMomentum("main")),
+      ...topicRequests,
       settle("hitlCases", getHitlCases()),
       settle("loginTests", getLoginTests()),
       settle("crawlJobs", getCrawlJobs(false)),
@@ -172,11 +225,15 @@ export default function OverviewPage() {
     ]);
 
     return Object.fromEntries(results.map((result) => [result.name, result]));
-  }, []);
+  }, [selectedTopic]);
 
-  const { data, loading, refreshing, error, refresh } = useAutoRefresh(fetchOverview, 10000);
+  const { data, loading, refreshing, error, refresh } = useAutoRefresh(
+    fetchOverview,
+    selectedTopic === "house-price" ? 60000 : 10000
+  );
   const health = data?.health?.status === "fulfilled" ? data.health.value : null;
   const currentPrices = data?.currentPrices?.status === "fulfilled" ? data.currentPrices.value : null;
+  const housePrices = data?.housePrices?.status === "fulfilled" ? data.housePrices.value : null;
   const availableDates = data?.availableDates?.status === "fulfilled" ? data.availableDates.value : null;
   const trends = data?.trends?.status === "fulfilled" ? data.trends.value : null;
   const sourceMomentum =
@@ -185,29 +242,44 @@ export default function OverviewPage() {
   const loginTests = data?.loginTests?.status === "fulfilled" ? data.loginTests.value : null;
   const crawlJobs = data?.crawlJobs?.status === "fulfilled" ? data.crawlJobs.value : null;
   const sessions = data?.sessions?.status === "fulfilled" ? data.sessions.value : null;
-  const records = useMemo(() => normalizeGoldPriceResponse(currentPrices), [currentPrices]);
-  const sourceStatuses = useMemo(() => getSourceStatuses(currentPrices), [currentPrices]);
+  const isHouseTopic = selectedTopic === "house-price";
+  const selectedTopicLabel = topicOptions.find((topic) => topic.value === selectedTopic)?.label || "Gold Price";
+  const topicPayload = isHouseTopic ? housePrices : currentPrices;
+  const records = useMemo(
+    () => (isHouseTopic ? normalizeHousePriceResponse(housePrices) : normalizeGoldPriceResponse(currentPrices)),
+    [currentPrices, housePrices, isHouseTopic]
+  );
+  const sourceStatuses = useMemo(
+    () => (isHouseTopic ? getHouseSourceStatuses(housePrices) : getSourceStatuses(currentPrices)),
+    [currentPrices, housePrices, isHouseTopic]
+  );
   const caseRows = Array.isArray(hitlCases?.cases) ? hitlCases.cases.slice(0, 4) : [];
   const loginRows = Array.isArray(loginTests?.jobs) ? loginTests.jobs.slice(0, 4) : [];
   const crawlJobRows = Array.isArray(crawlJobs?.jobs) ? crawlJobs.jobs : [];
+  const houseMedianPrice = useMemo(() => median(records.map((record) => record.price)), [records]);
+  const houseMedianPricePerM2 = useMemo(() => median(records.map((record) => record.pricePerM2)), [records]);
 
   const sourceRows = Object.entries(sourceStatuses).map(([source, status]) => ({
     id: source,
     source: source.toUpperCase(),
-    topic: "Gold Price",
+    topic: selectedTopicLabel,
     status,
     message:
-      currentPrices?.[source]?.error ||
+      topicPayload?.[source]?.error ||
       (status === "ok" ? "Backend source returned records." : "No source records returned."),
   }));
 
   const anyEndpointSucceeded = Boolean(
-    health || currentPrices || availableDates || trends || sourceMomentum || hitlCases || loginTests || crawlJobs || sessions
+    health || currentPrices || housePrices || availableDates || trends || sourceMomentum || hitlCases || loginTests || crawlJobs || sessions
   );
-  const lastCrawlTime = currentPrices?.timestamp ? formatDateTime(currentPrices.timestamp) : "Not connected";
+  const lastCrawlTime = topicPayload?.timestamp ? formatDateTime(topicPayload.timestamp) : "Not connected";
   const serviceSummary = health?.services
     ? Object.entries(health.services).map(([name, status]) => `${name}: ${status}`).join(" | ")
     : "GET /api/health";
+
+  useEffect(() => {
+    refresh();
+  }, [refresh, selectedTopic]);
 
   return (
     <div className="space-y-5 pb-12">
@@ -218,7 +290,21 @@ export default function OverviewPage() {
             Authorized crawling, session monitoring, blocking detection, and human review.
           </p>
         </div>
-        <RefreshButton onClick={refresh} refreshing={refreshing} />
+        <div className="flex flex-wrap items-center gap-2">
+          <select
+            value={selectedTopic}
+            onChange={(event) => setSelectedTopic(event.target.value)}
+            className="h-10 rounded-md border border-line bg-panelSoft px-3 text-sm font-semibold text-sky-100 transition hover:border-cyan/40 focus:border-cyan/60 focus:outline-none"
+            aria-label="Overview data topic"
+          >
+            {topicOptions.map((topic) => (
+              <option key={topic.value} value={topic.value}>
+                {topic.label}
+              </option>
+            ))}
+          </select>
+          <RefreshButton onClick={refresh} refreshing={refreshing} />
+        </div>
       </div>
 
       {loading ? (
@@ -237,21 +323,25 @@ export default function OverviewPage() {
             />
             <CompactMetric
               label="Current Feed"
-              value={currentPrices ? "Connected" : "Not connected"}
+              value={topicPayload ? "Connected" : "Not connected"}
               detail={lastCrawlTime}
               icon={Activity}
-              status={<StatusBadge status={currentPrices ? "ok" : "not_connected"} />}
+              status={<StatusBadge status={topicPayload ? "ok" : "not_connected"} />}
             />
             <CompactMetric
               label="Extracted Records"
-              value={currentPrices ? records.length : "Not connected"}
-              detail="Derived from real current price payload."
+              value={topicPayload ? records.length : "Not connected"}
+              detail={`Derived from ${selectedTopicLabel.toLowerCase()} payload.`}
               icon={Database}
             />
             <CompactMetric
-              label="Available Dates"
-              value={availableDates?.count ?? availableDates?.dates?.length ?? "Not connected"}
-              detail="GET /api/available-dates"
+              label={isHouseTopic ? "Median Price" : "Available Dates"}
+              value={
+                isHouseTopic
+                  ? formatVNDWithUnit(houseMedianPrice)
+                  : availableDates?.count ?? availableDates?.dates?.length ?? "Not connected"
+              }
+              detail={isHouseTopic ? "Parsed from current listings" : "GET /api/available-dates"}
               icon={CalendarClock}
             />
             <CompactMetric
@@ -272,15 +362,45 @@ export default function OverviewPage() {
 
           <section className="grid gap-5 xl:grid-cols-[1fr_320px]">
             <Panel
-              title="Gold Price Trend"
-              action={<span className="text-xs text-muted">Backend /api/analytics/trends</span>}
+              title={isHouseTopic ? "House Price Snapshot" : "Gold Price Trend"}
+              action={
+                <span className="text-xs text-muted">
+                  {isHouseTopic ? "Backend /api/house-prices" : "Backend /api/analytics/trends"}
+                </span>
+              }
             >
-              {trends ? (
+              {!isHouseTopic && trends ? (
                 <PriceTrendChart trends={trends} />
+              ) : isHouseTopic && records.length ? (
+                <DataTable
+                  columns={[
+                    {
+                      key: "title",
+                      header: "Listing",
+                      render: (row) => (
+                        <div className="max-w-xl">
+                          {row.url ? (
+                            <a className="font-semibold text-sky-100 hover:text-cyan" href={row.url} target="_blank" rel="noreferrer">
+                              {row.title}
+                            </a>
+                          ) : (
+                            <span className="font-semibold text-sky-100">{row.title}</span>
+                          )}
+                          <div className="mt-1 text-xs text-muted">{row.location}</div>
+                        </div>
+                      ),
+                    },
+                    { key: "source", header: "Source", render: (row) => row.source.toUpperCase() },
+                    { key: "price", header: "Price", align: "right", render: (row) => formatVNDWithUnit(row.price) },
+                    { key: "pricePerM2", header: "VND / m2", align: "right", render: (row) => formatVNDWithUnit(row.pricePerM2) },
+                  ]}
+                  rows={records.slice(0, 8)}
+                  maxHeight="320px"
+                />
               ) : (
                 <NotConnectedCard
-                  title="No historical trend data available yet."
-                  message="Historical chart appears only when /api/analytics/trends returns backend data."
+                  title={isHouseTopic ? "No house price records available yet." : "No historical trend data available yet."}
+                  message={isHouseTopic ? "Refresh this topic after the backend crawler is running." : "Historical chart appears only when /api/analytics/trends returns backend data."}
                 />
               )}
             </Panel>
@@ -290,7 +410,28 @@ export default function OverviewPage() {
                 <SourceStatusPanel sourceRows={sourceRows} />
               </Panel>
               <Panel title="Price Changes">
-                {sourceMomentum ? (
+                {isHouseTopic ? (
+                  <div className="space-y-4">
+                    <div>
+                      <div className="text-3xl font-bold text-white">{formatVNDWithUnit(houseMedianPricePerM2)}</div>
+                      <div className="text-xs uppercase text-muted">median vnd / m2</div>
+                    </div>
+                    <div className="space-y-3">
+                      <div className="flex items-center justify-between text-sm text-sky-100">
+                        <span>Listings</span>
+                        <span className="font-bold text-emerald-300">{records.length}</span>
+                      </div>
+                      <div className="flex items-center justify-between text-sm text-sky-100">
+                        <span>With area</span>
+                        <span className="font-bold text-slate-300">{records.filter((record) => record.areaM2).length}</span>
+                      </div>
+                      <div className="flex items-center justify-between text-sm text-sky-100">
+                        <span>With price</span>
+                        <span className="font-bold text-amber-300">{records.filter((record) => record.price).length}</span>
+                      </div>
+                    </div>
+                  </div>
+                ) : sourceMomentum ? (
                   <MomentumMiniPanel momentum={sourceMomentum} />
                 ) : (
                   <NotConnectedCard

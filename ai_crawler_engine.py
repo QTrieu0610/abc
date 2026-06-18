@@ -22,6 +22,34 @@ DEFAULT_HEADERS = {
 }
 
 
+def _load_env_file():
+    """Load .env from this project without requiring python-dotenv."""
+    candidates = [
+        os.path.join(os.getcwd(), ".env"),
+        os.path.join(os.path.dirname(__file__), ".env"),
+        os.path.join(os.path.dirname(os.path.dirname(__file__)), ".env"),
+    ]
+    for path in candidates:
+        if not os.path.exists(path):
+            continue
+        try:
+            with open(path, "r", encoding="utf-8") as env_file:
+                for raw_line in env_file:
+                    line = raw_line.strip()
+                    if not line or line.startswith("#") or "=" not in line:
+                        continue
+                    key, value = line.split("=", 1)
+                    key = key.strip()
+                    value = value.strip().strip('"').strip("'")
+                    os.environ.setdefault(key, value)
+            return
+        except Exception as e:
+            print(f"[-] Cannot load .env file {path}: {e}")
+
+
+_load_env_file()
+
+
 def clean_price(price_str: Optional[str]) -> Optional[int]:
     """Normalize Vietnamese gold prices to VND per chi."""
     if not price_str:
@@ -35,6 +63,43 @@ def clean_price(price_str: Optional[str]) -> Optional[int]:
     if value < 100000:
         value *= 1000
     return value
+
+
+def clean_real_estate_price(price_str: Optional[str]) -> Optional[int]:
+    """Normalize Vietnamese real-estate prices to VND."""
+    if not price_str:
+        return None
+
+    value = str(price_str).lower().strip()
+    value = value.replace(",", ".")
+    if any(token in value for token in ["thỏa thuận", "thoả thuận", "liên hệ", "lien he"]):
+        return None
+
+    match = re.search(r"(\d+(?:\.\d+)?)", value)
+    if not match:
+        return None
+
+    amount = float(match.group(1))
+    if "tỷ" in value or "ty" in value:
+        amount *= 1_000_000_000
+    elif "triệu" in value or "trieu" in value:
+        amount *= 1_000_000
+    elif "nghìn" in value or "ngan" in value or "ngàn" in value:
+        amount *= 1_000
+
+    return int(amount)
+
+
+def clean_area_m2(area_str: Optional[str]) -> Optional[float]:
+    """Extract a square-meter value from Vietnamese real-estate text."""
+    if not area_str:
+        return None
+
+    value = str(area_str).lower().replace(",", ".")
+    match = re.search(r"(\d+(?:\.\d+)?)\s*(?:m2|m²|m\s*2)", value)
+    if not match:
+        return None
+    return float(match.group(1))
 
 
 def source_result(status: str, results: Optional[List[Dict]] = None, error: Optional[str] = None) -> Dict:
@@ -92,8 +157,10 @@ class GoldCrawler:
         if self.source in ["sjc", "webgia"]:
             self.target_url = "https://webgia.com/gia-vang/sjc/"
             self.headers = DEFAULT_HEADERS.copy()
-            self.ollama_url = "http://localhost:11434/api/generate"
-            self.ai_model = "gemma4:e2b"
+            self.openai_base_url = os.environ.get("OPENAI_BASE_URL", "https://api.openai.com/v1")
+            self.openai_api_key = os.environ.get("OPENAI_API_KEY") or os.environ.get("DEEPSEEK_API_KEY")
+            self.ai_model = os.environ.get("OPENAI_MODEL") or os.environ.get("LLM_FALLBACK_MODEL") or "gpt-4o-mini"
+            self.openai_verify_ssl = os.environ.get("OPENAI_VERIFY_SSL", "true").lower() not in ["0", "false", "no"]
             os.makedirs("sessions", exist_ok=True)
             self.session_file = f"sessions/crawler_session_{self.profile_name}.json"
             self.max_retries = 3
@@ -190,7 +257,7 @@ class GoldCrawler:
         return result
 
     def _tier_2_ai_fallback_sjc(self, html):
-        print("[!] WebGia static parse failed. Trying local AI fallback...")
+        print("[!] WebGia static parse failed. Trying LLM API fallback...")
         from bs4 import Comment
 
         soup = BeautifulSoup(html or "", "html.parser")
@@ -222,22 +289,57 @@ Text:
 {clean_text}"""
 
         try:
+            if not self.openai_api_key:
+                print("[-] OPENAI_API_KEY is not configured")
+                return None
+
+            endpoint = self.openai_base_url.rstrip("/")
+            if not endpoint.endswith("/chat/completions"):
+                endpoint = f"{endpoint}/chat/completions"
+
+            headers = {
+                "Authorization": f"Bearer {self.openai_api_key}",
+                "Content-Type": "application/json",
+            }
+            payload = {
+                "model": self.ai_model,
+                "messages": [
+                    {
+                        "role": "system",
+                        "content": "Return valid JSON only. Do not include markdown fences.",
+                    },
+                    {"role": "user", "content": prompt},
+                ],
+                "temperature": 0,
+                "response_format": {"type": "json_object"},
+            }
             response = requests.post(
-                self.ollama_url,
-                json={
-                    "model": self.ai_model,
-                    "prompt": prompt,
-                    "stream": False,
-                    "format": "json",
-                },
+                endpoint,
+                headers=headers,
+                json=payload,
+                verify=self.openai_verify_ssl,
                 timeout=120,
             )
+            if response.status_code in [400, 422] and "response_format" in response.text:
+                payload.pop("response_format", None)
+                response = requests.post(
+                    endpoint,
+                    headers=headers,
+                    json=payload,
+                    verify=self.openai_verify_ssl,
+                    timeout=120,
+                )
             if response.status_code == 200:
-                return json.loads(response.json()["response"])
-            print(f"[-] Ollama error: {response.text}")
+                content = response.json()["choices"][0]["message"]["content"]
+                content = content.strip()
+                if content.startswith("```"):
+                    content = re.sub(r"^```(?:json)?\s*", "", content)
+                    content = re.sub(r"\s*```$", "", content)
+                return json.loads(content)
+            print(f"[-] LLM API error: {response.status_code} {response.text}")
             return None
         except Exception as e:
-            print(f"[-] Ollama unavailable: {e}")
+            print(f"[-] LLM API unavailable: {e}")
             return None
 
     def _detect_blocking_signals_sjc(self, html, status_code=200):
@@ -766,6 +868,299 @@ class PnjCrawler(GoldCrawler):
 
     def _browser_fetch(self) -> List[Dict]:
         return self._browser_fetch_pnj()
+
+
+class RealEstateCrawler:
+    """
+    Crawl Vietnamese real-estate listing pages and normalize listing data.
+
+    The output mirrors the gold crawler contract:
+    {source_name: {"status": "ok|failed", "results": [...], "error": None}}
+    """
+
+    DEFAULT_SOURCES = {
+        "batdongsan": {
+            "label": "Batdongsan",
+            "url": "https://batdongsan.com.vn/nha-dat-ban",
+        },
+        "alonhadat": {
+            "label": "AloNhaDat",
+            "url": "https://alonhadat.com.vn/nha-dat/can-ban.html",
+        },
+    }
+
+    LISTING_SELECTORS = [
+        "[class*='js__card']",
+        "[class*='product-item']",
+        "[class*='re__card']",
+        "[class*='listing']",
+        "[class*='property']",
+        "article",
+    ]
+
+    TITLE_SELECTORS = [
+        "h1", "h2", "h3",
+        "[class*='title']",
+        "[class*='name']",
+        "a[title]",
+    ]
+
+    PRICE_PATTERNS = [
+        r"(?:giá|gia)\s*:?\s*([\d,.]+\s*(?:tỷ|ty|triệu|trieu|nghìn|ngàn|ngan))",
+        r"([\d,.]+\s*(?:tỷ|ty|triệu|trieu|nghìn|ngàn|ngan)(?:\s*/\s*m2)?)",
+        r"(thỏa thuận|thoả thuận|liên hệ|lien he)",
+    ]
+
+    LOCATION_HINTS = ["quận", "huyện", "thành phố", "tp.", "tỉnh", "phường", "xã", "đường"]
+
+    def __init__(
+        self,
+        source: str = "batdongsan",
+        target_url: Optional[str] = None,
+        max_pages: int = 1,
+        use_browser_fallback: bool = True,
+    ):
+        self.source = (source or "batdongsan").lower()
+        self.max_pages = max(1, int(max_pages or 1))
+        self.use_browser_fallback = use_browser_fallback
+        source_config = self.DEFAULT_SOURCES.get(self.source, {})
+        self.source_label = source_config.get("label", self.source.title())
+        self.target_url = target_url or source_config.get("url")
+        if not self.target_url:
+            raise ValueError("Real-estate target URL is required for custom sources")
+        self.headers = DEFAULT_HEADERS.copy()
+
+    def _page_url(self, page_number: int) -> str:
+        if page_number <= 1:
+            return self.target_url
+        separator = "&" if "?" in self.target_url else "?"
+        return f"{self.target_url}{separator}p={page_number}"
+
+    def _fetch_static_page(self, url: str) -> str:
+        response = requests.get(url, headers=self.headers, timeout=20)
+        response.raise_for_status()
+        return response.text
+
+    def _browser_fetch_page(self, url: str) -> Optional[str]:
+        print(f"[!] Starting Playwright fallback for real-estate page: {url}")
+        try:
+            from playwright.sync_api import sync_playwright
+
+            with sync_playwright() as p:
+                browser = p.chromium.launch(headless=True)
+                page = browser.new_page(user_agent=self.headers["User-Agent"])
+                page.goto(url, wait_until="networkidle", timeout=45000)
+                html = page.content()
+                browser.close()
+                return html
+        except Exception as e:
+            print(f"[-] Real-estate Playwright fallback failed: {e}")
+            return None
+
+    def _detect_blocking_signals(self, html: Optional[str], status_code: int = 200) -> bool:
+        if status_code in [403, 429, 503] or not html:
+            return True
+        html_lower = html.lower()
+        return any(signal in html_lower for signal in [
+            "captcha",
+            "cloudflare",
+            "checking your browser",
+            "verify you are a human",
+            "access denied",
+        ])
+
+    def _extract_title(self, element) -> Optional[str]:
+        for selector in self.TITLE_SELECTORS:
+            node = element.select_one(selector)
+            if not node:
+                continue
+            title = node.get("title") or node.get_text(" ", strip=True)
+            if title and len(title) > 10:
+                return title
+        text = element.get_text(" ", strip=True)
+        return text[:160] if len(text) > 10 else None
+
+    def _extract_url(self, element) -> Optional[str]:
+        link = element.select_one("a[href]")
+        if not link:
+            return None
+        href = link.get("href")
+        if not href:
+            return None
+        if href.startswith("http://") or href.startswith("https://"):
+            return href
+        if href.startswith("/"):
+            root_match = re.match(r"^(https?://[^/]+)", self.target_url)
+            return f"{root_match.group(1)}{href}" if root_match else href
+        return href
+
+    def _extract_price_text(self, text: str) -> Optional[str]:
+        normalized = re.sub(r"\s+", " ", text or "").strip()
+        for pattern in self.PRICE_PATTERNS:
+            match = re.search(pattern, normalized, flags=re.IGNORECASE)
+            if match:
+                return match.group(1).strip()
+        return None
+
+    def _extract_location(self, text: str) -> Optional[str]:
+        parts = [part.strip() for part in re.split(r"[|\n•]", text or "") if part.strip()]
+        for part in parts:
+            lower = part.lower()
+            if any(hint in lower for hint in self.LOCATION_HINTS):
+                return part[:160]
+        return None
+
+    def _parse_json_ld_listings(self, soup: BeautifulSoup) -> List[Dict]:
+        records = []
+        for script in soup.find_all("script", type="application/ld+json"):
+            try:
+                payload = json.loads(script.string or "{}")
+            except Exception:
+                continue
+
+            items = payload if isinstance(payload, list) else [payload]
+            for item in items:
+                if not isinstance(item, dict):
+                    continue
+                graph = item.get("@graph") if isinstance(item.get("@graph"), list) else [item]
+                for node in graph:
+                    if not isinstance(node, dict):
+                        continue
+                    node_type = str(node.get("@type", "")).lower()
+                    if "product" not in node_type and "offer" not in node_type and "residence" not in node_type:
+                        continue
+                    title = node.get("name") or node.get("headline")
+                    offers = node.get("offers") if isinstance(node.get("offers"), dict) else {}
+                    price_text = str(offers.get("price") or node.get("price") or "")
+                    url = node.get("url")
+                    if title:
+                        records.append(self._build_record(title, price_text, "", url))
+        return records
+
+    def _build_record(
+        self,
+        title: str,
+        price_text: Optional[str],
+        body_text: str,
+        url: Optional[str],
+    ) -> Dict:
+        area_text = None
+        area_match = re.search(r"\d+(?:[,.]\d+)?\s*(?:m2|m²|m\s*2)", body_text or "", flags=re.IGNORECASE)
+        if area_match:
+            area_text = area_match.group(0)
+
+        price_vnd = clean_real_estate_price(price_text)
+        area_m2 = clean_area_m2(area_text)
+        price_per_m2 = int(price_vnd / area_m2) if price_vnd and area_m2 else None
+
+        return {
+            "datetime": int(datetime.now().timestamp()),
+            "source": self.source_label,
+            "property_type": "Real Estate",
+            "title": title,
+            "price": price_vnd,
+            "price_text": price_text,
+            "area_m2": area_m2,
+            "area_text": area_text,
+            "price_per_m2": price_per_m2,
+            "location": self._extract_location(body_text),
+            "url": url,
+        }
+
+    def _parse_listings(self, html: str) -> List[Dict]:
+        soup = BeautifulSoup(html or "", "html.parser")
+        records = self._parse_json_ld_listings(soup)
+
+        for selector in self.LISTING_SELECTORS:
+            for element in soup.select(selector):
+                text = element.get_text(" ", strip=True)
+                if len(text) < 30:
+                    continue
+
+                title = self._extract_title(element)
+                price_text = self._extract_price_text(text)
+                if not title or not price_text:
+                    continue
+
+                records.append(self._build_record(title, price_text, text, self._extract_url(element)))
+
+        unique = {}
+        for record in records:
+            key = (record.get("title"), record.get("price_text"), record.get("url"))
+            unique[key] = record
+        return list(unique.values())
+
+    def execute_crawling(self) -> Dict[str, Dict]:
+        print(f"[*] Crawling real-estate source {self.source_label}: {self.target_url}")
+        records = []
+        last_error = None
+
+        for page_number in range(1, self.max_pages + 1):
+            url = self._page_url(page_number)
+            html = None
+            try:
+                html = self._fetch_static_page(url)
+                if self._detect_blocking_signals(html):
+                    raise Exception("Blocked or empty static response")
+            except Exception as e:
+                last_error = e
+                print(f"[-] Static real-estate fetch failed for page {page_number}: {e}")
+                if self.use_browser_fallback:
+                    html = self._browser_fetch_page(url)
+
+            if not html:
+                continue
+
+            page_records = self._parse_listings(html)
+            print(f"[+] {self.source_label} page {page_number}: {len(page_records)} listings")
+            records.extend(page_records)
+
+        if records:
+            return {self.source: source_result("ok", records)}
+        return {self.source: source_result("failed", [], str(last_error or "No listings parsed"))}
+
+
+class BatdongsanCrawler(RealEstateCrawler):
+    def __init__(self, max_pages: int = 1, use_browser_fallback: bool = True):
+        super().__init__("batdongsan", max_pages=max_pages, use_browser_fallback=use_browser_fallback)
+
+
+class AloNhaDatCrawler(RealEstateCrawler):
+    def __init__(self, max_pages: int = 1, use_browser_fallback: bool = True):
+        super().__init__("alonhadat", max_pages=max_pages, use_browser_fallback=use_browser_fallback)
+
+
+class MultiSourceRealEstateCrawler:
+    """Run real-estate crawlers and return the same source_result envelope as gold crawlers."""
+
+    def __init__(self, max_pages: int = 1, use_browser_fallback: bool = True):
+        self.crawlers = {
+            "batdongsan": BatdongsanCrawler(max_pages=max_pages, use_browser_fallback=use_browser_fallback),
+            "alonhadat": AloNhaDatCrawler(max_pages=max_pages, use_browser_fallback=use_browser_fallback),
+        }
+
+    def execute_crawling(self) -> Dict[str, Dict]:
+        results = {
+            source_name: source_result("failed", [], "Not started")
+            for source_name in self.crawlers
+        }
+
+        with ThreadPoolExecutor(max_workers=len(self.crawlers)) as executor:
+            future_map = {
+                executor.submit(crawler.execute_crawling): source_name
+                for source_name, crawler in self.crawlers.items()
+            }
+
+            for future in as_completed(future_map):
+                source_name = future_map[future]
+                try:
+                    source_payload = future.result()
+                    if source_payload and source_name in source_payload:
+                        results[source_name] = source_payload[source_name]
+                except Exception as e:
+                    results[source_name] = source_result("failed", [], str(e))
+
+        return results
 
 
 class MultiSourceGoldCrawler:
