@@ -1,0 +1,10 @@
+"""
+Configuration file for Gold Price Monitor
+Store your API key here
+"""
+
+# Get your API key from: https://vapi.vnappmob.com/api/request_api_key?scope=gold
+# The API key expires after 15 days by default
+
+API_KEY = "your_api_key_here"
+
