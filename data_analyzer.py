@@ -11,6 +11,25 @@ from collections import defaultdict
 import statistics
 
 
+MAIN_MOMENTUM_SOURCES = [
+    {
+        'company': 'SJC',
+        'gold_type': 'SJC 1L',
+        'location': 'National',
+    },
+    {
+        'company': 'DOJI',
+        'gold_type': 'SJC - Bán Lẻ',
+        'location': 'Hanoi',
+    },
+    {
+        'company': 'PNJ',
+        'gold_type': 'Vàng miếng SJC 999.9',
+        'location': 'Ho Chi Minh City',
+    },
+]
+
+
 class GoldPriceAnalyzer:
     """Analyze historical gold price data"""
     
@@ -277,9 +296,55 @@ class GoldPriceAnalyzer:
                 }
         
         return comparison
+
+    def get_source_momentum(self, scope: str = 'main', compare: str = 'previous') -> Dict:
+        """
+        Compare the latest crawl with the previous crawl for key source rows.
+
+        Args:
+            scope: main = curated key rows, all = every company/type/location group
+            compare: previous = compare against the immediately previous record
+
+        Returns:
+            Dictionary with source momentum items and summary counts.
+        """
+        self.reload_data()
+
+        if compare != 'previous':
+            compare = 'previous'
+
+        grouped = defaultdict(list)
+        for row in self.data:
+            company = row.get('company')
+            gold_type = row.get('gold_type')
+            location = row.get('location')
+            if not company or not gold_type or not location:
+                continue
+            grouped[(company, gold_type, location)].append(row)
+
+        for rows in grouped.values():
+            rows.sort(key=lambda item: self._parse_date(item.get('timestamp', '')))
+
+        keys = self._momentum_keys(grouped, scope)
+        items = [self._build_momentum_item(key, grouped.get(key, [])) for key in keys]
+
+        summary = {
+            'sources_up': sum(1 for item in items if self._item_primary_direction(item) == 'up'),
+            'sources_down': sum(1 for item in items if self._item_primary_direction(item) == 'down'),
+            'unchanged': sum(1 for item in items if self._item_primary_direction(item) == 'flat'),
+            'missing_comparison': sum(1 for item in items if item.get('status') != 'ok'),
+            'total': len(items),
+        }
+
+        return {
+            'scope': scope if scope in ['main', 'all'] else 'main',
+            'compare': compare,
+            'items': items,
+            'summary': summary,
+        }
     
     def get_moving_average(self, company: str, days_back: int = 30, 
-                          window: int = 7) -> Dict:
+                          window: int = 7, location: str = None, gold_type: str = None) -> Dict:
         """
         Calculate moving average for price trends
         
@@ -291,7 +356,7 @@ class GoldPriceAnalyzer:
         Returns:
             Dictionary with moving averages
         """
-        trends = self.get_price_trends(company, days_back)
+        trends = self.get_price_trends(company, days_back, location=location, gold_type=gold_type)
         
         if not trends['buy_prices'] or len(trends['buy_prices']) < window:
             return {
@@ -332,6 +397,112 @@ class GoldPriceAnalyzer:
                 return datetime.strptime(timestamp_str, '%Y-%m-%d')
         except ValueError:
             return datetime.min
+
+    def _momentum_keys(self, grouped: Dict, scope: str) -> List[Tuple[str, str, str]]:
+        if scope == 'all':
+            return sorted(grouped.keys(), key=lambda key: (key[0], key[2], key[1]))
+
+        keys = []
+        for source in MAIN_MOMENTUM_SOURCES:
+            keys.append((source['company'], source['gold_type'], source['location']))
+        return keys
+
+    def _build_momentum_item(self, key: Tuple[str, str, str], rows: List[Dict]) -> Dict:
+        company, gold_type, location = key
+        latest = rows[-1] if rows else None
+        previous = rows[-2] if len(rows) >= 2 else None
+
+        if not latest:
+            return {
+                'company': company,
+                'gold_type': gold_type,
+                'location': location,
+                'latest_timestamp': None,
+                'previous_timestamp': None,
+                'latest_buy': None,
+                'previous_buy': None,
+                'buy_change': None,
+                'buy_change_percent': None,
+                'buy_direction': 'no_data',
+                'latest_sell': None,
+                'previous_sell': None,
+                'sell_change': None,
+                'sell_change_percent': None,
+                'sell_direction': 'no_data',
+                'spread': None,
+                'spread_change': None,
+                'status': 'insufficient_data',
+            }
+
+        latest_buy = self._valid_price(latest.get('buy_price'))
+        previous_buy = self._valid_price(previous.get('buy_price')) if previous else None
+        latest_sell = self._valid_price(latest.get('sell_price'))
+        previous_sell = self._valid_price(previous.get('sell_price')) if previous else None
+
+        buy_change = self._price_change(latest_buy, previous_buy)
+        sell_change = self._price_change(latest_sell, previous_sell)
+        latest_spread = self._spread(latest_buy, latest_sell)
+        previous_spread = self._spread(previous_buy, previous_sell)
+        spread_change = self._price_change(latest_spread, previous_spread)
+
+        return {
+            'company': company,
+            'gold_type': gold_type,
+            'location': location,
+            'latest_timestamp': latest.get('timestamp'),
+            'previous_timestamp': previous.get('timestamp') if previous else None,
+            'latest_buy': latest_buy,
+            'previous_buy': previous_buy,
+            'buy_change': buy_change,
+            'buy_change_percent': self._percent_change(buy_change, previous_buy),
+            'buy_direction': self._direction(buy_change),
+            'latest_sell': latest_sell,
+            'previous_sell': previous_sell,
+            'sell_change': sell_change,
+            'sell_change_percent': self._percent_change(sell_change, previous_sell),
+            'sell_direction': self._direction(sell_change),
+            'spread': latest_spread,
+            'spread_change': spread_change,
+            'status': 'ok' if previous else 'insufficient_data',
+        }
+
+    def _valid_price(self, value) -> Optional[float]:
+        try:
+            numeric = float(value)
+        except (TypeError, ValueError):
+            return None
+        return numeric if numeric > 0 else None
+
+    def _price_change(self, latest: Optional[float], previous: Optional[float]) -> Optional[float]:
+        if latest is None or previous is None:
+            return None
+        return latest - previous
+
+    def _percent_change(self, change: Optional[float], previous: Optional[float]) -> Optional[float]:
+        if change is None or previous is None or previous <= 0:
+            return None
+        return (change / previous) * 100
+
+    def _direction(self, change: Optional[float]) -> str:
+        if change is None:
+            return 'no_data'
+        if change > 0:
+            return 'up'
+        if change < 0:
+            return 'down'
+        return 'flat'
+
+    def _spread(self, buy: Optional[float], sell: Optional[float]) -> Optional[float]:
+        if buy is None or sell is None or sell < buy:
+            return None
+        return sell - buy
+
+    def _item_primary_direction(self, item: Dict) -> str:
+        if item.get('status') != 'ok':
+            return 'no_data'
+        if item.get('sell_direction') != 'no_data':
+            return item.get('sell_direction')
+        return item.get('buy_direction', 'no_data')
 
 
 def main():

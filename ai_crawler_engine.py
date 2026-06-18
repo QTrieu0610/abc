@@ -1,149 +1,166 @@
-import requests
-from bs4 import BeautifulSoup
 import json
-import time
-from datetime import datetime
-import re
-
 import os
 import random
+import re
 import time
+from concurrent.futures import ThreadPoolExecutor, as_completed
+from datetime import datetime
+from typing import Dict, List, Optional
 
-class HybridGoldCrawler:
+import requests
+from bs4 import BeautifulSoup
+
+
+DEFAULT_HEADERS = {
+    "User-Agent": (
+        "Mozilla/5.0 (Windows NT 10.0; Win64; x64) "
+        "AppleWebKit/537.36 (KHTML, like Gecko) "
+        "Chrome/120.0.0.0 Safari/537.36"
+    ),
+    "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9",
+    "Accept-Language": "vi-VN,vi;q=0.9,en-US;q=0.8,en;q=0.7",
+}
+
+
+def clean_price(price_str: Optional[str]) -> Optional[int]:
+    """Normalize Vietnamese gold prices to VND per chi."""
+    if not price_str:
+        return None
+
+    cleaned = re.sub(r"[^\d]", "", str(price_str))
+    if not cleaned:
+        return None
+
+    value = int(cleaned)
+    if value < 100000:
+        value *= 1000
+    return value
+
+
+def source_result(status: str, results: Optional[List[Dict]] = None, error: Optional[str] = None) -> Dict:
+    return {
+        "status": status,
+        "results": results or [],
+        "error": error,
+    }
+
+
+class SjcWebGiaCrawler:
     """
-    Hệ thống Crawler 3 Lớp (Hybrid) áp dụng cho giá vàng SJC.
-    Tier 1: Request thuần + Static Parsing (BeautifulSoup)
-    Tier 2: Gọi AI (Ollama Local) khi giao diện web thay đổi
+    Crawl SJC prices from WebGia.
+
+    The old HybridGoldCrawler behavior is kept here: requests + static parse first,
+    then Playwright and local AI fallback when the static page cannot be parsed.
     """
-    
-    def __init__(self, use_ai_fallback=True, profile_name="default"):
+
+    def __init__(self, use_ai_fallback: bool = True, profile_name: str = "default"):
         self.target_url = "https://webgia.com/gia-vang/sjc/"
-        self.headers = {
-            'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
-            'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9',
-            'Accept-Language': 'vi-VN,vi;q=0.9,en-US;q=0.8,en;q=0.7',
-        }
+        self.headers = DEFAULT_HEADERS.copy()
         self.use_ai_fallback = use_ai_fallback
         self.ollama_url = "http://localhost:11434/api/generate"
-        self.ai_model = "qwen2.5:7b" # Bạn có thể đổi sang llama3.1
-        
-        # 1. Multi-identity / Profile-based Crawling
+        self.ai_model = "gemma4:e2b"
         self.profile_name = profile_name
         os.makedirs("sessions", exist_ok=True)
         self.session_file = f"sessions/crawler_session_{self.profile_name}.json"
-        
-        # 2. Dynamic Retry Strategy & Proxy Rotation
         self.max_retries = 3
-        self.proxies = [None] # Nơi gắn Proxy List nếu cần
-        
-        # 3. Secure Credentials Vault
+        self.proxies = [None]
         self.credentials = {
             "username": os.environ.get("GOLD_SITE_USER", "default_user"),
-            "password": os.environ.get("GOLD_SITE_PASS", "default_pass")
+            "password": os.environ.get("GOLD_SITE_PASS", "default_pass"),
         }
-        
+
     def _get_cookies_from_session(self):
-        """Đọc file state của Playwright và trích xuất Cookies để dùng cho requests"""
-        import os
         cookies_dict = {}
         if os.path.exists(self.session_file):
             try:
-                with open(self.session_file, 'r', encoding='utf-8') as f:
+                with open(self.session_file, "r", encoding="utf-8") as f:
                     state = json.load(f)
-                    for cookie in state.get('cookies', []):
-                        cookies_dict[cookie['name']] = cookie['value']
+                    for cookie in state.get("cookies", []):
+                        cookies_dict[cookie["name"]] = cookie["value"]
             except Exception as e:
-                print(f"[-] Không thể đọc session file: {e}")
+                print(f"[-] Cannot read session file: {e}")
         return cookies_dict
+
     def _clean_price(self, price_str):
-        """Làm sạch chuỗi giá: '82.500.000' -> 82500000"""
-        if not price_str: return None
-        cleaned = re.sub(r'[^\d]', '', price_str)
-        if not cleaned: return None
-        
-        # Thường giá trên webgia ghi là 82.500 (nghìn đồng/chỉ) -> Cần nhân thêm 1000
-        val = int(cleaned)
-        if val < 100000:  
-            val *= 1000
-        return val
+        return clean_price(price_str)
 
     def _tier_1_static_parse(self, html):
-        """
-        Trích xuất Ưu tiên (Tĩnh & Nhanh). Tốc độ: ~10ms
-        Sử dụng BeautifulSoup để quét thẻ HTML tĩnh.
-        """
-        print("[*] Áp dụng Static Parser (Tier 1)...")
-        soup = BeautifulSoup(html, 'html.parser')
-        
+        print("[*] Applying WebGia static parser...")
+        soup = BeautifulSoup(html or "", "html.parser")
         result = {}
-        # Mô phỏng việc cào bảng giá từ webgia.com
-        # Thẻ HTML thực tế có thể khác, đây là Rule dự kiến
-        table = soup.find('table', class_='table-gia-vang')
-        
+
+        table = soup.find("table", class_="table-gia-vang")
         if not table:
-            # Giao diện đã đổi, hoặc webgia chống bot -> Trả về None để kích hoạt Fallback
+            for candidate in soup.find_all("table"):
+                header_text = candidate.get_text(" ", strip=True).lower()
+                if "loại vàng" in header_text and "mua vào" in header_text and "bán ra" in header_text:
+                    table = candidate
+                    break
+        if not table:
             return None
-            
-        rows = table.find_all('tr')
-        for row in rows:
-            cols = row.find_all('td')
-            if len(cols) >= 3:
-                name = cols[0].text.strip().lower()
-                buy = self._clean_price(cols[1].text.strip())
-                sell = self._clean_price(cols[2].text.strip())
-                
-                # Mapping tên
-                if '1l' in name or 'miếng' in name:
-                    result['buy_1l'] = buy; result['sell_1l'] = sell
-                elif 'nhẫn' in name and '1c' in name:
-                    result['buy_nhan1c'] = buy; result['sell_nhan1c'] = sell
-                elif 'nữ trang' in name and '99,99' in name:
-                    result['buy_nutrang_9999'] = buy; result['sell_nutrang_9999'] = sell
-                elif 'nữ trang' in name and '99%' in name:
-                    result['buy_nutrang_99'] = buy; result['sell_nutrang_99'] = sell
-                elif 'nữ trang' in name and '75%' in name:
-                    result['buy_nutrang_75'] = buy; result['sell_nutrang_75'] = sell
-                    
-        # Kiểm tra xem có quét được dữ liệu SJC 1L quan trọng nhất không
-        if 'buy_1l' not in result:
-            return None # Thất bại, sang Fallback
-            
-        print("[+] Static Parser chạy thành công!")
+
+        for row in table.find_all("tr"):
+            cols = row.find_all("td")
+            if len(cols) < 3:
+                continue
+
+            if len(cols) >= 4:
+                name_index, buy_index, sell_index = 1, 2, 3
+            else:
+                name_index, buy_index, sell_index = 0, 1, 2
+
+            name = cols[name_index].get_text(" ", strip=True).lower()
+            buy = self._clean_price(cols[buy_index].get_text(" ", strip=True))
+            sell = self._clean_price(cols[sell_index].get_text(" ", strip=True))
+
+            if buy is None and sell is None:
+                continue
+
+            if "1l" in name or "mieng" in name or "miếng" in name:
+                if "buy_1l" not in result:
+                    result["buy_1l"] = buy
+                    result["sell_1l"] = sell
+            elif "nhan" in name or "nhẫn" in name:
+                if "buy_nhan1c" not in result:
+                    result["buy_nhan1c"] = buy
+                    result["sell_nhan1c"] = sell
+            elif ("nu trang" in name or "nữ trang" in name) and ("99,99" in name or "9999" in name):
+                result["buy_nutrang_9999"] = buy
+                result["sell_nutrang_9999"] = sell
+            elif ("nu trang" in name or "nữ trang" in name) and "99" in name:
+                result["buy_nutrang_99"] = buy
+                result["sell_nutrang_99"] = sell
+            elif ("nu trang" in name or "nữ trang" in name) and ("75" in name or "18k" in name):
+                result["buy_nutrang_75"] = buy
+                result["sell_nutrang_75"] = sell
+
+        if "buy_1l" not in result:
+            return None
+
+        print("[+] WebGia static parser succeeded")
         return result
 
     def _tier_2_ai_fallback(self, html):
-        """
-        AI Fallback (Chậm & Thông minh). Tốc độ: ~2-5s
-        Chỉ gọi khi Tier 1 gãy do giao diện thay đổi.
-        """
-        print("[!] Giao diện thay đổi hoặc Selector gãy. Kích hoạt AI Fallback (Tier 2)...")
-        
-        # 1. Sanitization: Chuyển HTML thành Text siêu gọn để tiết kiệm Token
+        print("[!] WebGia static parse failed. Trying local AI fallback...")
         from bs4 import Comment
-        soup = BeautifulSoup(html, 'html.parser')
-        
-        # Xóa rác
-        for tag in soup(['script', 'style', 'header', 'footer', 'nav']):
+
+        soup = BeautifulSoup(html or "", "html.parser")
+        for tag in soup(["script", "style", "header", "footer", "nav"]):
             tag.decompose()
-        for comment in soup.findAll(text=lambda text:isinstance(text, Comment)):
+        for comment in soup.find_all(string=lambda text: isinstance(text, Comment)):
             comment.extract()
-            
+
         clean_text = " ".join(soup.stripped_strings)
-        
-        # Lấy 2000 ký tự quan trọng nhất chứa cụm từ 'sjc'
-        sjc_idx = clean_text.lower().find('sjc')
+        sjc_idx = clean_text.lower().find("sjc")
         if sjc_idx != -1:
-            start = max(0, sjc_idx - 500)
-            end = min(len(clean_text), sjc_idx + 1500)
-            clean_text = clean_text[start:end]
+            clean_text = clean_text[max(0, sjc_idx - 500): min(len(clean_text), sjc_idx + 1500)]
         else:
             clean_text = clean_text[:2000]
 
-        # 2. Gọi Local LLM (Ollama)
-        prompt = f"""Bạn là AI phân tích dữ liệu. Đọc văn bản sau và lấy ra giá mua/bán của vàng SJC hôm nay.
-Chú ý: Quy đổi giá về VND/chỉ (Ví dụ 8,200,000). Trả về JSON, KHÔNG CÓ BẤT KỲ CHỮ NÀO KHÁC.
+        prompt = f"""Extract today's SJC gold buy/sell prices from this Vietnamese text.
+Return JSON only. Normalize all values to VND per chi.
 
-Format JSON cần thiết:
+Expected keys:
 {{
   "buy_1l": 0, "sell_1l": 0,
   "buy_nhan1c": 0, "sell_nhan1c": 0,
@@ -155,196 +172,499 @@ Format JSON cần thiết:
 Text:
 {clean_text}"""
 
-        print(f"[*] Đang gửi {len(clean_text)} ký tự cho mô hình {self.ai_model} phân tích...")
         try:
-            response = requests.post(self.ollama_url, json={
-                "model": self.ai_model,
-                "prompt": prompt,
-                "stream": False,
-                "format": "json" # Bắt buộc model trả về JSON chuẩn
-            }, timeout=120)  # Tăng timeout lên 120s vì chạy local có thể mất thời gian
-            
+            response = requests.post(
+                self.ollama_url,
+                json={
+                    "model": self.ai_model,
+                    "prompt": prompt,
+                    "stream": False,
+                    "format": "json",
+                },
+                timeout=120,
+            )
             if response.status_code == 200:
-                result = json.loads(response.json()['response'])
-                print("[+] AI Trích xuất dữ liệu thành công!")
-                return result
-            else:
-                print(f"[-] Lỗi gọi Ollama: {response.text}")
-                return None
+                return json.loads(response.json()["response"])
+            print(f"[-] Ollama error: {response.text}")
+            return None
         except Exception as e:
-            print(f"[-] Ollama Server không phản hồi. Hãy chắc chắn bạn đã chạy 'ollama run {self.ai_model}'. Lỗi: {e}")
+            print(f"[-] Ollama unavailable: {e}")
             return None
 
     def _detect_blocking_signals(self, html, status_code=200):
-        """4. Detect blocking signals: Captcha, Rate Limits, Empty results"""
-        if status_code in [403, 429, 503]: return True
-        if not html: return True
+        if status_code in [403, 429, 503]:
+            return True
+        if not html:
+            return True
         html_lower = html.lower()
         signals = ["please verify you are a human", "cloudflare", "access denied", "captcha", "security check"]
-        for signal in signals:
-            if signal in html_lower:
-                return True
-        return False
+        return any(signal in html_lower for signal in signals)
 
     def _simulate_human_behavior(self, page):
-        """5. Simulate human-like behavior: typing delay, mouse movement, scrolling"""
-        print("[*] Đang mô phỏng hành vi người thật (Mouse movement & Scrolling)...")
-        # Di chuột ngẫu nhiên
         page.mouse.move(random.randint(100, 500), random.randint(100, 500))
         page.wait_for_timeout(random.randint(500, 1500))
-        # Cuộn trang ngẫu nhiên
         page.mouse.wheel(0, random.randint(300, 800))
         page.wait_for_timeout(random.randint(1000, 2000))
 
     def _handle_login(self, page):
-        """6. Support login using credentials stored securely"""
         try:
             if page.locator("input[type='password']").is_visible(timeout=2000):
-                print("[!] Yêu cầu đăng nhập. Đang tự động điền thông tin bảo mật...")
-                # Gõ chậm như người thật (delay)
-                page.locator("input[type='text'], input[name='username'], input[type='email']").first.fill(self.credentials['username'])
+                page.locator("input[type='text'], input[name='username'], input[type='email']").first.fill(
+                    self.credentials["username"]
+                )
                 page.wait_for_timeout(random.randint(300, 800))
-                page.locator("input[type='password']").fill(self.credentials['password'])
-                page.wait_for_timeout(random.randint(300, 800))
+                page.locator("input[type='password']").fill(self.credentials["password"])
                 page.keyboard.press("Enter")
-                page.wait_for_load_state('networkidle')
-                print("[+] Đăng nhập thành công!")
+                page.wait_for_load_state("networkidle")
         except Exception:
-            pass # Không có form login thì bỏ qua
+            pass
 
     def _browser_fetch(self):
-        """
-        Tier 2 (Browser Automation): Headful/Headless kết hợp MCP.
-        """
-        print("[!] Kích hoạt Browser Automation (Playwright)...")
+        print("[!] Starting Playwright fallback for WebGia...")
         try:
             from playwright.sync_api import sync_playwright
-            import os
-            
-            # Cấu hình Token MCP (Nếu có)
-            mcp_token = os.environ.get("PLAYWRIGHT_MCP_EXTENSION_TOKEN", "ke6HO9i2bxggIzXIH2fjqJGirgsp_WzLrBGFw04UzNs")
-            
+
+            mcp_token = os.environ.get("PLAYWRIGHT_MCP_EXTENSION_TOKEN", "")
+
             with sync_playwright() as p:
                 browser = None
                 context = None
-                
-                # 1. THỬ KẾT NỐI VÀO BROWSER CÁ NHÂN QUA MCP EXTENSION (Không mở cửa sổ mới)
+                launched_browser = False
+
                 try:
-                    # Mặc định Playwright Extension mở cổng 9222 hoặc 9223
-                    endpoint_url = f"ws://localhost:9222?token={mcp_token}"
-                    print("[*] Đang thử kết nối vào Browser cá nhân (Extension) qua MCP Token...")
+                    endpoint_url = f"ws://localhost:9222?token={mcp_token}" if mcp_token else "ws://localhost:9222"
                     browser = p.chromium.connect_over_cdp(endpoint_url)
                     context = browser.contexts[0] if browser.contexts else browser.new_context()
-                    print("[+] Đã gắn thành công vào Browser của bạn!")
-                except Exception as cdp_err:
-                    print(f"[*] Không tìm thấy Extension/CDP (Lỗi: {cdp_err}). Chuyển sang chế độ Headless truyền thống...")
-                    # 2. FALLBACK: TẠO HEADLESS BROWSER MỚI (Chạy ngầm hoàn toàn)
+                except Exception:
                     browser = p.chromium.launch(headless=True)
-                    
+                    launched_browser = True
                     context_args = {
-                        'user_agent': self.headers['User-Agent'],
-                        'viewport': {'width': 1920, 'height': 1080}
+                        "user_agent": self.headers["User-Agent"],
+                        "viewport": {"width": 1920, "height": 1080},
                     }
                     if os.path.exists(self.session_file):
-                        context_args['storage_state'] = self.session_file
-                        print("[*] Đã nạp Session/Cookies cũ vào Headless Browser.")
+                        context_args["storage_state"] = self.session_file
                     context = browser.new_context(**context_args)
-                
+
                 page = context.new_page()
-                
-                # Đi tới trang, cho phép chờ đến 30s để vượt qua màn hình Cloudflare
-                page.goto(self.target_url, wait_until='networkidle', timeout=30000)
-                
-                # Hành vi giống người (Tránh bị phát hiện là Bot)
+                page.goto(self.target_url, wait_until="networkidle", timeout=30000)
                 self._simulate_human_behavior(page)
-                
-                # Xử lý Login nếu web yêu cầu
                 self._handle_login(page)
-                
                 html = page.content()
-                
-                # Kiểm tra chặn (Captcha/Challenge)
+
                 if self._detect_blocking_signals(html):
-                    print("[-] Bị chặn bởi Captcha/Challenge. Yêu cầu HITL (Human-in-the-loop)!")
-                    # 7. HITL Escalation: Ở đây ta có thể gửi cảnh báo qua Slack/Telegram
-                    # hoặc đẩy trạng thái về Frontend React để con người vào giải quyết
                     raise Exception("HITL_REQUIRED")
-                    
-                print("[+] Lấy mã nguồn thành công qua Playwright!")
-                
-                # Lưu lại Session/Cookies mới nhất
+
                 context.storage_state(path=self.session_file)
-                print(f"[+] Đã cập nhật Session mới tại {self.session_file}")
-                
-                # Chỉ đóng tab vừa tạo để không làm tắt trình duyệt chính của bạn
                 page.close()
-                
-                # Nếu tự khởi tạo Headless thì mới đóng browser
-                if not browser.contexts: 
+                if launched_browser:
                     browser.close()
-                    
                 return html
         except ImportError:
-            print("[-] Chưa cài đặt Playwright! Vui lòng chạy: pip install playwright && playwright install chromium")
+            print("[-] Playwright is not installed")
             return None
         except Exception as e:
-            print(f"[-] Lỗi Browser Automation: {e}")
+            print(f"[-] Playwright fallback failed: {e}")
             return None
 
     def execute_crawling(self):
-        """Hàm chính điều phối việc cào dữ liệu với Retry Strategy"""
-        print(f"[*] Đang kết nối tới {self.target_url} (Profile: {self.profile_name})...")
-        
+        print(f"[*] Crawling WebGia SJC: {self.target_url}")
+
         for attempt in range(1, self.max_retries + 1):
             try:
-                # Lấy Proxy (nếu có cấu hình Rotation)
                 proxy = random.choice(self.proxies)
                 proxies_dict = {"http": proxy, "https": proxy} if proxy else None
-                
                 cookies = self._get_cookies_from_session()
-                
-                # Lớp 1: Request thuần
-                response = requests.get(self.target_url, headers=self.headers, cookies=cookies, proxies=proxies_dict, timeout=10)
-                
+
+                response = requests.get(
+                    self.target_url,
+                    headers=self.headers,
+                    cookies=cookies,
+                    proxies=proxies_dict,
+                    timeout=10,
+                )
+
                 if self._detect_blocking_signals(response.text, response.status_code):
-                    print(f"[-] Lần {attempt}: Bị Anti-bot chặn (HTTP {response.status_code}). Kích hoạt Playwright Fallback...")
                     html = self._browser_fetch()
                 else:
                     html = response.text
-                
-                # Parse tĩnh
+
                 data = self._tier_1_static_parse(html)
-                
-                # AI Fallback
                 if data is None and self.use_ai_fallback:
                     data = self._tier_2_ai_fallback(html)
-                    
-                if data:
-                    current_timestamp = int(datetime.now().timestamp())
-                    data['datetime'] = current_timestamp
-                    return {'sjc': [data]}
-                    
-                raise Exception("Lấy dữ liệu thất bại sau khi Parse.")
-                
-            except Exception as e:
-                if str(e) == "HITL_REQUIRED":
-                    print("[!!!] CẦN SỰ CAN THIỆP CỦA CON NGƯỜI (HITL). DỪNG RETRY.")
-                    return None
-                    
-                print(f"[-] Lỗi ở lần thử {attempt}/{self.max_retries}: {e}")
-                if attempt < self.max_retries:
-                    # 8. Dynamic Retry Delay: Chờ ngẫu nhiên trước khi thử lại
-                    delay = attempt * random.randint(3, 7)
-                    print(f"[*] Đang áp dụng Dynamic Delay. Đợi {delay}s trước khi thử lại...")
-                    time.sleep(delay)
-                else:
-                    print("[-] Vượt quá số lần thử nghiệm. Cào thất bại.")
-                    return None
 
-# Chạy thử nghiệm độc lập
+                if data:
+                    data["datetime"] = int(datetime.now().timestamp())
+                    return {"sjc": source_result("ok", [data])}
+
+                raise Exception("Could not parse WebGia SJC prices")
+            except Exception as e:
+                print(f"[-] WebGia SJC attempt {attempt}/{self.max_retries} failed: {e}")
+                if attempt < self.max_retries:
+                    time.sleep(attempt * random.randint(3, 7))
+                else:
+                    return {"sjc": source_result("failed", [], str(e))}
+
+
+class DojiCrawler:
+    """Crawl current DOJI gold prices from the official DOJI site."""
+
+    AREA_MAP = {
+        "ha noi": "Hanoi",
+        "hà nội": "Hanoi",
+        "da nang": "Da Nang",
+        "đà nẵng": "Da Nang",
+        "ho chi minh": "Ho Chi Minh City",
+        "hồ chí minh": "Ho Chi Minh City",
+    }
+
+    GOLD_TYPE_PATTERNS = [
+        ("SJC - Bán Lẻ", ["sjc"]),
+        ("AVPL / Kim TT", ["avpl", "kim tt", "kim"]),
+        ("Nhẫn Tròn 9999", ["nhan tron", "nhẫn tròn", "hung thinh", "hưng thịnh"]),
+        ("Nữ trang 99.99", ["99.99", "9999"]),
+        ("Nữ trang 99.9", ["99.9", "999"]),
+        ("Nữ trang 99", ["99 -", " 99 "]),
+    ]
+
+    def __init__(self):
+        self.target_url = "https://giavang.doji.vn/"
+        self.headers = DEFAULT_HEADERS.copy()
+        self.max_retries = 2
+
+    def _normalize_text(self, value: str) -> str:
+        return re.sub(r"\s+", " ", value or "").strip().lower()
+
+    def _map_gold_type(self, raw_name: str) -> Optional[str]:
+        normalized = self._normalize_text(raw_name)
+        for gold_type, patterns in self.GOLD_TYPE_PATTERNS:
+            if any(pattern in normalized for pattern in patterns):
+                return gold_type
+        return None
+
+    def _looks_like_price(self, value: str) -> bool:
+        return clean_price(value) is not None
+
+    def _parse_rows_from_text(self, html: str) -> List[Dict]:
+        soup = BeautifulSoup(html or "", "html.parser")
+        text = soup.get_text("\n", strip=True)
+        lines = [line.strip() for line in text.splitlines() if line.strip()]
+        records = []
+        current_location = None
+        timestamp = int(datetime.now().timestamp())
+
+        for line in lines:
+            lower = self._normalize_text(line)
+            if "bang gia tai" in lower or "bảng giá tại" in lower:
+                current_location = None
+                for marker, location in self.AREA_MAP.items():
+                    if marker in lower:
+                        current_location = location
+                        break
+                continue
+
+            if current_location is None:
+                continue
+
+            match = re.match(r"(.+?)\s+([\d,.]+)\s+([\d,.]+)$", line)
+            if not match:
+                continue
+
+            raw_name, raw_buy, raw_sell = match.groups()
+            gold_type = self._map_gold_type(raw_name)
+            buy = clean_price(raw_buy)
+            sell = clean_price(raw_sell)
+
+            if not gold_type or buy is None or sell is None:
+                continue
+
+            records.append({
+                "datetime": timestamp,
+                "company": "DOJI",
+                "gold_type": gold_type,
+                "buy_price": buy,
+                "sell_price": sell,
+                "location": current_location,
+                "source": self.target_url,
+            })
+
+        return records
+
+    def _parse_rows_from_tables(self, html: str) -> List[Dict]:
+        soup = BeautifulSoup(html or "", "html.parser")
+        records = []
+        timestamp = int(datetime.now().timestamp())
+
+        for table in soup.find_all("table"):
+            location = None
+            heading_text = ""
+            previous = table.find_previous(["h1", "h2", "h3", "h4", "strong", "div"])
+            if previous:
+                heading_text = previous.get_text(" ", strip=True).lower()
+
+            for marker, mapped in self.AREA_MAP.items():
+                if marker in heading_text:
+                    location = mapped
+                    break
+
+            if not location:
+                continue
+
+            for row in table.find_all("tr"):
+                cells = [cell.get_text(" ", strip=True) for cell in row.find_all(["td", "th"])]
+                if len(cells) < 3:
+                    continue
+
+                raw_name, raw_buy, raw_sell = cells[0], cells[1], cells[2]
+                gold_type = self._map_gold_type(raw_name)
+                buy = clean_price(raw_buy)
+                sell = clean_price(raw_sell)
+
+                if not gold_type or buy is None or sell is None:
+                    continue
+
+                records.append({
+                    "datetime": timestamp,
+                    "company": "DOJI",
+                    "gold_type": gold_type,
+                    "buy_price": buy,
+                    "sell_price": sell,
+                    "location": location,
+                    "source": self.target_url,
+                })
+
+        return records
+
+    def _parse(self, html: str) -> List[Dict]:
+        records = self._parse_rows_from_tables(html)
+        if not records:
+            records = self._parse_rows_from_text(html)
+
+        unique = {}
+        for record in records:
+            key = (record["location"], record["gold_type"])
+            unique[key] = record
+        return list(unique.values())
+
+    def execute_crawling(self):
+        print(f"[*] Crawling DOJI: {self.target_url}")
+
+        for attempt in range(1, self.max_retries + 1):
+            try:
+                response = requests.get(self.target_url, headers=self.headers, timeout=15)
+                response.raise_for_status()
+                records = self._parse(response.text)
+
+                if not records:
+                    raise Exception("Could not parse DOJI prices")
+
+                print(f"[+] DOJI parser collected {len(records)} rows")
+                return {"doji": source_result("ok", records)}
+            except Exception as e:
+                print(f"[-] DOJI attempt {attempt}/{self.max_retries} failed: {e}")
+                if attempt < self.max_retries:
+                    time.sleep(2)
+                else:
+                    return {"doji": source_result("failed", [], str(e))}
+
+
+class PnjCrawler:
+    """Crawl current PNJ gold prices from the PNJ public API used by the PNJ site."""
+
+    PRIMARY_API = "https://edge-cf-api.pnj.io"
+    FALLBACK_API = "https://edge-api.pnj.io"
+    ENDPOINT = "/ecom-frontend/v1/get-gold-price?zone={zone}"
+    PAGE_URL = "https://www.pnj.com.vn/site/gia-vang"
+
+    ZONES = {
+        "00": "Ho Chi Minh City",
+        "07": "Can Tho",
+        "11": "Hanoi",
+        "13": "Da Nang",
+        "14": "Tay Nguyen",
+        "21": "Dong Nam Bo",
+    }
+
+    def __init__(self):
+        self.headers = {
+            **DEFAULT_HEADERS,
+            "Accept": "application/json, text/plain, */*",
+            "Origin": "https://www.pnj.com.vn",
+            "Referer": self.PAGE_URL,
+        }
+        self.max_retries = 2
+
+    def _normalize_api_price(self, value) -> Optional[int]:
+        if value is None or value == "":
+            return None
+        try:
+            numeric = float(value)
+        except (TypeError, ValueError):
+            return clean_price(str(value))
+        if numeric <= 0:
+            return None
+        if numeric < 100000:
+            numeric *= 1000
+        return int(numeric)
+
+    def _fetch_zone_from_domain(self, domain: str, zone: str) -> Dict:
+        url = domain + self.ENDPOINT.format(zone=zone)
+        response = requests.get(url, headers=self.headers, timeout=15)
+        response.raise_for_status()
+        return response.json()
+
+    def _fetch_zone(self, zone: str) -> Dict:
+        last_error = None
+        for domain in [self.PRIMARY_API, self.FALLBACK_API]:
+            try:
+                return self._fetch_zone_from_domain(domain, zone)
+            except Exception as e:
+                last_error = e
+                print(f"[-] PNJ API failed for zone {zone} on {domain}: {e}")
+        raise last_error or Exception(f"PNJ API failed for zone {zone}")
+
+    def _parse_api_data(self, zone: str, payload: Dict) -> List[Dict]:
+        records = []
+        timestamp = int(datetime.now().timestamp())
+        location = self.ZONES.get(zone, zone)
+
+        for item in payload.get("data") or []:
+            gold_type = item.get("tensp") or item.get("name") or item.get("masp")
+            buy = self._normalize_api_price(item.get("giamua"))
+            sell = self._normalize_api_price(item.get("giaban"))
+
+            if not gold_type or (buy is None and sell is None):
+                continue
+
+            records.append({
+                "datetime": timestamp,
+                "company": "PNJ",
+                "gold_type": gold_type,
+                "buy_price": buy,
+                "sell_price": sell,
+                "location": location,
+                "source": self.PAGE_URL,
+            })
+
+        return records
+
+    def _browser_fetch(self) -> List[Dict]:
+        """Fallback for cases where the PNJ API domains reject direct requests."""
+        print("[!] Starting Playwright fallback for PNJ...")
+        records = []
+        try:
+            from playwright.sync_api import sync_playwright
+
+            with sync_playwright() as p:
+                browser = p.chromium.launch(headless=True)
+                page = browser.new_page(
+                    user_agent=DEFAULT_HEADERS["User-Agent"],
+                    viewport={"width": 1440, "height": 1000},
+                )
+                page.goto(self.PAGE_URL, wait_until="networkidle", timeout=45000)
+
+                for zone, location in self.ZONES.items():
+                    page.locator("select").first.select_option(zone)
+                    page.wait_for_timeout(1200)
+                    text = page.locator("body").inner_text(timeout=10000)
+                    lines = [line.strip() for line in text.splitlines() if line.strip()]
+                    timestamp = int(datetime.now().timestamp())
+
+                    for index, line in enumerate(lines):
+                        if not line.lower().startswith("vàng"):
+                            continue
+                        window = " ".join(lines[index:index + 6])
+                        numbers = re.findall(r"\d{1,3}(?:[,.]\d{3})+|\d{4,6}", window)
+                        if len(numbers) < 2:
+                            continue
+                        buy = self._normalize_api_price(numbers[0])
+                        sell = self._normalize_api_price(numbers[1])
+                        records.append({
+                            "datetime": timestamp,
+                            "company": "PNJ",
+                            "gold_type": line,
+                            "buy_price": buy,
+                            "sell_price": sell,
+                            "location": location,
+                            "source": self.PAGE_URL,
+                        })
+
+                browser.close()
+        except Exception as e:
+            print(f"[-] PNJ Playwright fallback failed: {e}")
+
+        unique = {}
+        for record in records:
+            unique[(record["location"], record["gold_type"])] = record
+        return list(unique.values())
+
+    def execute_crawling(self):
+        print(f"[*] Crawling PNJ: {self.PAGE_URL}")
+
+        for attempt in range(1, self.max_retries + 1):
+            try:
+                records = []
+                for zone in self.ZONES:
+                    payload = self._fetch_zone(zone)
+                    records.extend(self._parse_api_data(zone, payload))
+
+                if not records:
+                    raise Exception("Could not parse PNJ prices")
+
+                print(f"[+] PNJ parser collected {len(records)} rows")
+                return {"pnj": source_result("ok", records)}
+            except Exception as e:
+                print(f"[-] PNJ attempt {attempt}/{self.max_retries} failed: {e}")
+                if attempt < self.max_retries:
+                    time.sleep(2)
+                else:
+                    records = self._browser_fetch()
+                    if records:
+                        print(f"[+] PNJ Playwright fallback collected {len(records)} rows")
+                        return {"pnj": source_result("ok", records)}
+                    return {"pnj": source_result("failed", [], str(e))}
+
+
+class MultiSourceGoldCrawler:
+    """Run SJC/WebGia, DOJI, and PNJ crawlers in parallel."""
+
+    def __init__(self, use_ai_fallback: bool = True, profile_name: str = "default"):
+        self.crawlers = {
+            "sjc": SjcWebGiaCrawler(use_ai_fallback=use_ai_fallback, profile_name=profile_name),
+            "doji": DojiCrawler(),
+            "pnj": PnjCrawler(),
+        }
+
+    def execute_crawling(self) -> Dict[str, Dict]:
+        results = {
+            "sjc": source_result("failed", [], "Not started"),
+            "doji": source_result("failed", [], "Not started"),
+            "pnj": source_result("failed", [], "Not started"),
+        }
+
+        with ThreadPoolExecutor(max_workers=len(self.crawlers)) as executor:
+            future_map = {
+                executor.submit(crawler.execute_crawling): source_name
+                for source_name, crawler in self.crawlers.items()
+            }
+
+            for future in as_completed(future_map):
+                source_name = future_map[future]
+                try:
+                    source_payload = future.result()
+                    if source_payload and source_name in source_payload:
+                        results[source_name] = source_payload[source_name]
+                except Exception as e:
+                    results[source_name] = source_result("failed", [], str(e))
+
+        return results
+
+
+class HybridGoldCrawler(MultiSourceGoldCrawler):
+    """Backward-compatible name for existing imports."""
+
+
 if __name__ == "__main__":
-    crawler = HybridGoldCrawler(use_ai_fallback=True)
+    crawler = MultiSourceGoldCrawler(use_ai_fallback=True)
     result = crawler.execute_crawling()
-    if result:
-        print("\n[KIẾT QUẢ CUỐI CÙNG]")
-        print(json.dumps(result, indent=2, ensure_ascii=False))
+    print(json.dumps(result, indent=2, ensure_ascii=False))

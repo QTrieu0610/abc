@@ -1,6 +1,8 @@
 import React from 'react';
 
-const CrawlerStatusWidget = ({ status, statusMessage, alerts }) => {
+const CrawlerStatusWidget = ({ status, statusMessage, alerts, sourceStatuses = {} }) => {
+  const sourceEntries = Object.entries(sourceStatuses).filter(([, value]) => Boolean(value));
+
   return (
     <div className="card shadow-lg h-100 position-relative overflow-hidden" style={{
         background: 'linear-gradient(135deg, rgba(30, 41, 59, 0.95), rgba(15, 23, 42, 0.95))',
@@ -46,6 +48,38 @@ const CrawlerStatusWidget = ({ status, statusMessage, alerts }) => {
                 <i className="fas fa-terminal me-2"></i>{statusMessage || "Waiting for initialization..."}
             </div>
         </div>
+
+        {sourceEntries.length > 0 && (
+            <div className="mb-4">
+                <h6 className="fw-bold mb-3 d-flex align-items-center" style={{ color: '#93c5fd' }}>
+                    <i className="fas fa-sitemap me-2"></i> Source Health
+                </h6>
+                <div className="d-flex flex-wrap gap-2">
+                    {sourceEntries.map(([source, sourceStatus]) => {
+                        const isOk = sourceStatus === 'ok';
+                        const isEmpty = sourceStatus === 'empty';
+                        return (
+                            <span
+                                key={source}
+                                className="badge px-3 py-2 rounded-pill"
+                                style={{
+                                    background: isOk
+                                        ? 'rgba(16, 185, 129, 0.18)'
+                                        : isEmpty
+                                        ? 'rgba(148, 163, 184, 0.18)'
+                                        : 'rgba(239, 68, 68, 0.18)',
+                                    color: isOk ? '#34d399' : isEmpty ? '#cbd5e1' : '#f87171',
+                                    border: `1px solid ${isOk ? 'rgba(16, 185, 129, 0.45)' : isEmpty ? 'rgba(148, 163, 184, 0.45)' : 'rgba(239, 68, 68, 0.45)'}`
+                                }}
+                            >
+                                <i className={`fas ${isOk ? 'fa-check-circle' : isEmpty ? 'fa-circle-minus' : 'fa-triangle-exclamation'} me-2`}></i>
+                                {source}: {String(sourceStatus).toUpperCase()}
+                            </span>
+                        );
+                    })}
+                </div>
+            </div>
+        )}
 
         {/* Alerts Box */}
         <h6 className="fw-bold mb-3 d-flex align-items-center" style={{ color: '#f87171' }}>

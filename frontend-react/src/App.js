@@ -8,7 +8,8 @@ import AnalyticsCards from './components/AnalyticsCards';
 import SpreadTrendChart from './components/SpreadTrendChart';
 import DailyChangeBarChart from './components/DailyChangeBarChart';
 import CumulativeReturnChart from './components/CumulativeReturnChart';
-import CrawlerStatusWidget from './components/CrawlerStatusWidget';
+import CompletePriceTable from './components/CompletePriceTable';
+import MultiSourceMomentumDashboard from './components/MultiSourceMomentumDashboard';
 
 // Register Chart.js components
 import {
@@ -49,9 +50,9 @@ function App() {
   const [dataRefreshTrigger, setDataRefreshTrigger] = useState(0);
   const [wsConnected, setWsConnected] = useState(false);
   const [wsReconnecting, setWsReconnecting] = useState(false);
-  const [crawlerStatus, setCrawlerStatus] = useState('idle');
-  const [crawlerMessage, setCrawlerMessage] = useState('Initializing...');
-  const [alerts, setAlerts] = useState([]);
+  const [, setCrawlerStatus] = useState('idle');
+  const [, setCrawlerMessage] = useState('Initializing...');
+  const [, setAlerts] = useState([]);
   const wsRef = useRef(null);
   const reconnectTimeoutRef = useRef(null);
 
@@ -397,19 +398,16 @@ function App() {
           </div>
 
           <div className="dashboard-grid">
-            {/* Top row: Prices and Crawler Status */}
+            {/* Top row: full-width market prices */}
             <section className="grid-item">
-              <div className="row g-4 align-items-stretch">
-                <div className="col-12 col-xl-8">
-                  <PriceCards prices={currentPrices} />
-                </div>
-                <div className="col-12 col-xl-4">
-                  <CrawlerStatusWidget 
-                    status={crawlerStatus} 
-                    statusMessage={crawlerMessage} 
-                    alerts={alerts} 
-                  />
-                </div>
+              <div className="d-flex">
+                <PriceCards prices={currentPrices} />
+              </div>
+            </section>
+
+            <section className="grid-item">
+              <div className="d-flex">
+                <MultiSourceMomentumDashboard dataRefreshTrigger={dataRefreshTrigger} />
               </div>
             </section>
 
@@ -417,6 +415,12 @@ function App() {
             <section className="grid-item">
               <div className="d-flex">
                 <UnifiedComparisonChart dataRefreshTrigger={dataRefreshTrigger} />
+              </div>
+            </section>
+
+            <section className="grid-item">
+              <div className="d-flex">
+                <CompletePriceTable prices={currentPrices} />
               </div>
             </section>
 

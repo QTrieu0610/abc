@@ -390,7 +390,7 @@ const CumulativeReturnChart = ({ dataRefreshTrigger }) => {
   }, [chartData, chartType]);
 
   const renderStat = (label, value, helper, tone) => (
-    <div className={`mini-stat${tone ? ` mini-stat-${tone}` : ''}`}>
+    <div key={label} className={`mini-stat${tone ? ` mini-stat-${tone}` : ''}`}>
       <span className="mini-stat-label">{label}</span>
       <span className="mini-stat-value">{value}</span>
       {helper && <small className="text-muted">{helper}</small>}

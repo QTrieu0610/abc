@@ -2,7 +2,6 @@ import React, { useState, useEffect, useRef } from 'react';
 import { Card, Form, Button, ButtonGroup, Badge } from 'react-bootstrap';
 import { Line } from 'react-chartjs-2';
 import Select from 'react-select';
-import zoomPlugin from 'chartjs-plugin-zoom';
 import axios from 'axios';
 
 const formatDateLabel = (dateString) => {
@@ -20,9 +19,8 @@ const UnifiedComparisonChart = ({ period, dataRefreshTrigger }) => {
   const [selectedGoldTypes, setSelectedGoldTypes] = useState([]);
   const chartRef = useRef(null);
 
-  // Define all available gold types with buy/sell options (DOJI and PNJ removed - only SJC)
+  // Define all available gold types with buy/sell options.
   const goldTypeOptions = [
-    // SJC Options only (DOJI and PNJ removed completely)
     {
       label: 'SJC Gold Types',
       options: [
@@ -37,13 +35,52 @@ const UnifiedComparisonChart = ({ period, dataRefreshTrigger }) => {
         { value: 'SJC_J18K_BUY', label: 'SJC Jewelry 18K - Buy', company: 'SJC', goldType: 'SJC Jewelry 18K', type: 'buy_nutrang_75', priceType: 'buy', color: '#6610f2' },
         { value: 'SJC_J18K_SELL', label: 'SJC Jewelry 18K - Sell', company: 'SJC', goldType: 'SJC Jewelry 18K', type: 'sell_nutrang_75', priceType: 'sell', color: '#520dc2' }
       ]
+    },
+    {
+      label: 'DOJI Hanoi',
+      options: [
+        { value: 'DOJI_HN_SJC_BUY', label: 'DOJI Hanoi SJC - Buy', company: 'DOJI', goldType: 'SJC - Bán Lẻ', location: 'Hanoi', priceType: 'buy', color: '#0ea5e9' },
+        { value: 'DOJI_HN_SJC_SELL', label: 'DOJI Hanoi SJC - Sell', company: 'DOJI', goldType: 'SJC - Bán Lẻ', location: 'Hanoi', priceType: 'sell', color: '#0369a1' },
+        { value: 'DOJI_HN_RING_BUY', label: 'DOJI Hanoi Ring 9999 - Buy', company: 'DOJI', goldType: 'Nhẫn Tròn 9999', location: 'Hanoi', priceType: 'buy', color: '#14b8a6' },
+        { value: 'DOJI_HN_RING_SELL', label: 'DOJI Hanoi Ring 9999 - Sell', company: 'DOJI', goldType: 'Nhẫn Tròn 9999', location: 'Hanoi', priceType: 'sell', color: '#0f766e' }
+      ]
+    },
+    {
+      label: 'DOJI Other Regions',
+      options: [
+        { value: 'DOJI_DN_SJC_BUY', label: 'DOJI Da Nang SJC - Buy', company: 'DOJI', goldType: 'SJC - Bán Lẻ', location: 'Da Nang', priceType: 'buy', color: '#f97316' },
+        { value: 'DOJI_DN_SJC_SELL', label: 'DOJI Da Nang SJC - Sell', company: 'DOJI', goldType: 'SJC - Bán Lẻ', location: 'Da Nang', priceType: 'sell', color: '#c2410c' },
+        { value: 'DOJI_HCM_SJC_BUY', label: 'DOJI HCMC SJC - Buy', company: 'DOJI', goldType: 'SJC - Bán Lẻ', location: 'Ho Chi Minh City', priceType: 'buy', color: '#22c55e' },
+        { value: 'DOJI_HCM_SJC_SELL', label: 'DOJI HCMC SJC - Sell', company: 'DOJI', goldType: 'SJC - Bán Lẻ', location: 'Ho Chi Minh City', priceType: 'sell', color: '#15803d' }
+      ]
+    },
+    {
+      label: 'PNJ Retail',
+      options: [
+        { value: 'PNJ_HCM_SJC_BUY', label: 'PNJ HCMC SJC - Buy', company: 'PNJ', goldType: 'Vàng miếng SJC 999.9', location: 'Ho Chi Minh City', priceType: 'buy', color: '#16a34a' },
+        { value: 'PNJ_HCM_SJC_SELL', label: 'PNJ HCMC SJC - Sell', company: 'PNJ', goldType: 'Vàng miếng SJC 999.9', location: 'Ho Chi Minh City', priceType: 'sell', color: '#166534' },
+        { value: 'PNJ_HN_SJC_BUY', label: 'PNJ Hanoi SJC - Buy', company: 'PNJ', goldType: 'Vàng miếng SJC 999.9', location: 'Hanoi', priceType: 'buy', color: '#84cc16' },
+        { value: 'PNJ_HN_SJC_SELL', label: 'PNJ Hanoi SJC - Sell', company: 'PNJ', goldType: 'Vàng miếng SJC 999.9', location: 'Hanoi', priceType: 'sell', color: '#4d7c0f' },
+        { value: 'PNJ_HCM_RING_BUY', label: 'PNJ HCMC Ring 999.9 - Buy', company: 'PNJ', goldType: 'Nhẫn Trơn PNJ 999.9', location: 'Ho Chi Minh City', priceType: 'buy', color: '#06b6d4' },
+        { value: 'PNJ_HCM_RING_SELL', label: 'PNJ HCMC Ring 999.9 - Sell', company: 'PNJ', goldType: 'Nhẫn Trơn PNJ 999.9', location: 'Ho Chi Minh City', priceType: 'sell', color: '#0e7490' }
+      ]
     }
   ];
 
-  // Default selection: SJC 1L Buy and Sell
+  // Default selection: SJC 1L Buy/Sell and DOJI Hanoi SJC Buy/Sell.
   useEffect(() => {
     if (selectedGoldTypes.length === 0) {
-      const defaultSelections = goldTypeOptions[0].options.slice(0, 2); // SJC 1L Buy and Sell
+      const flatOptions = goldTypeOptions.flatMap((group) => group.options);
+      const defaultSelections = [
+        'SJC_1L_BUY',
+        'SJC_1L_SELL',
+        'DOJI_HN_SJC_BUY',
+        'DOJI_HN_SJC_SELL',
+        'PNJ_HCM_SJC_BUY',
+        'PNJ_HCM_SJC_SELL'
+      ]
+        .map((value) => flatOptions.find((option) => option.value === value))
+        .filter(Boolean);
       setSelectedGoldTypes(defaultSelections);
     }
   }, []);

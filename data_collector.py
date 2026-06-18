@@ -69,28 +69,38 @@ class HistoricalDataCollector:
             print(f"Error fetching {company} data: {e}")
             return None
     
-    def collect_current_prices(self) -> Dict[str, List[Dict]]:
+    def collect_current_prices(self) -> Dict[str, Dict]:
         """
-        Collect current prices using the new Hardened AI Crawler (Hybrid)
+        Collect current prices from all configured crawler sources.
         """
-        print(f"Collecting current gold prices via AI Crawler...")
+        print(f"Collecting current gold prices via Multi-Source Crawler...")
         
         try:
-            # Import our new engine
-            from ai_crawler_engine import HybridGoldCrawler
-            crawler = HybridGoldCrawler(use_ai_fallback=True)
+            from ai_crawler_engine import MultiSourceGoldCrawler
+            crawler = MultiSourceGoldCrawler(use_ai_fallback=True)
             result = crawler.execute_crawling()
-            
-            if result and 'sjc' in result:
-                print(f"  [+] Collected SJC records successfully via AI Crawler")
+
+            if result:
+                for source, payload in result.items():
+                    status = payload.get('status') if isinstance(payload, dict) else 'unknown'
+                    count = len(payload.get('results', [])) if isinstance(payload, dict) else 0
+                    print(f"  [{status}] {source.upper()}: {count} records")
                 return result
-            else:
-                print(f"  [-] AI Crawler failed to return data")
-                return {'sjc': []}
+
+            print(f"  [-] Multi-Source Crawler returned no data")
+            return {
+                'sjc': {'status': 'failed', 'results': [], 'error': 'No data'},
+                'doji': {'status': 'failed', 'results': [], 'error': 'No data'},
+                'pnj': {'status': 'failed', 'results': [], 'error': 'No data'}
+            }
                 
         except Exception as e:
             print(f"  [-] Error running AI Crawler: {e}")
-            return {'sjc': []}
+            return {
+                'sjc': {'status': 'failed', 'results': [], 'error': str(e)},
+                'doji': {'status': 'failed', 'results': [], 'error': str(e)},
+                'pnj': {'status': 'failed', 'results': [], 'error': str(e)}
+            }
 
     def collect_historical_data(self, days_back: int = 365) -> Dict[str, List[Dict]]:
         """
@@ -158,6 +168,7 @@ class HistoricalDataCollector:
         rows = []
         
         for company, records in data.items():
+            records = self._extract_records(records)
             for record in records:
                 # Extract timestamp from API response
                 # API provides Unix timestamp in 'datetime' field
@@ -174,6 +185,10 @@ class HistoricalDataCollector:
                         timestamp = datetime.now().strftime('%Y-%m-%d %H:%M:%S')
                 else:
                     timestamp = datetime.now().strftime('%Y-%m-%d %H:%M:%S')
+
+                if self._is_normalized_price_row(record):
+                    rows.append(self._normalized_record_to_csv_row(record, timestamp))
+                    continue
 
                 # Create a row with all available price types
                 if company == 'sjc':
@@ -237,6 +252,10 @@ class HistoricalDataCollector:
                         })
                 
                 elif company == 'doji':
+                    if self._is_normalized_price_row(record):
+                        rows.append(self._normalized_record_to_csv_row(record, timestamp))
+                        continue
+
                     # DOJI has 4 locations - save ALL of them
 
                     # 1. Ho Chi Minh City
@@ -370,6 +389,7 @@ class HistoricalDataCollector:
         rows = []
 
         for company, records in data.items():
+            records = self._extract_records(records)
             for record in records:
                 # Extract timestamp from API response
                 if 'datetime' in record:
@@ -385,6 +405,10 @@ class HistoricalDataCollector:
                         timestamp = datetime.now().strftime('%Y-%m-%d %H:%M:%S')
                 else:
                     timestamp = datetime.now().strftime('%Y-%m-%d %H:%M:%S')
+
+                if self._is_normalized_price_row(record):
+                    rows.append(self._normalized_record_to_csv_row(record, timestamp))
+                    continue
 
                 # Create rows based on company type
                 if company == 'sjc':
@@ -444,6 +468,10 @@ class HistoricalDataCollector:
                         })
 
                 elif company == 'doji':
+                    if self._is_normalized_price_row(record):
+                        rows.append(self._normalized_record_to_csv_row(record, timestamp))
+                        continue
+
                     # DOJI has 4 locations - save ALL of them
 
                     # 1. Ho Chi Minh City
@@ -767,6 +795,27 @@ class HistoricalDataCollector:
                 'date_to': date_to
             }
     
+    @staticmethod
+    def _extract_records(records):
+        if isinstance(records, dict):
+            return records.get('results', [])
+        return records or []
+
+    @staticmethod
+    def _is_normalized_price_row(record: Dict) -> bool:
+        return all(key in record for key in ['company', 'gold_type', 'buy_price', 'sell_price', 'location'])
+
+    @staticmethod
+    def _normalized_record_to_csv_row(record: Dict, timestamp: str) -> Dict:
+        return {
+            'timestamp': timestamp,
+            'company': record.get('company', '').upper(),
+            'gold_type': record.get('gold_type', ''),
+            'buy_price': record.get('buy_price'),
+            'sell_price': record.get('sell_price'),
+            'location': record.get('location', '')
+        }
+
     @staticmethod
     def _build_row_key(row: Dict) -> tuple:
         timestamp = row.get('timestamp', '') or ''

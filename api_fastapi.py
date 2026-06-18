@@ -82,6 +82,28 @@ api = GoldPriceAPI(api_key=API_KEY)
 analyzer = GoldPriceAnalyzer() if GoldPriceAnalyzer else None
 collector = HistoricalDataCollector(api_key=API_KEY) if HistoricalDataCollector else None
 
+
+def empty_source(error: Optional[str] = None) -> Dict[str, Any]:
+    return {
+        'status': 'failed' if error else 'empty',
+        'results': [],
+        'error': error
+    }
+
+
+def successful_sources(current_data: Optional[Dict[str, Any]]) -> Dict[str, List[Dict]]:
+    if not current_data:
+        return {}
+
+    data = {}
+    for source_name, payload in current_data.items():
+        if not isinstance(payload, dict):
+            continue
+        results = payload.get('results') or []
+        if payload.get('status') == 'ok' and results:
+            data[source_name] = results
+    return data
+
 # WebSocket Connection Manager
 class ConnectionManager:
     """Manage WebSocket connections and broadcast messages"""
@@ -129,10 +151,13 @@ class ConnectionManager:
             return True, alerts
         
         # Compare prices
-        has_changed = False
+        has_changed = (
+            json.dumps(new_prices, sort_keys=True, default=str)
+            != json.dumps(self.last_prices, sort_keys=True, default=str)
+        )
         if 'sjc' in new_prices and 'sjc' in self.last_prices:
-            old_sjc = self.last_prices.get('sjc', {}).get('results', [{}])[0]
-            new_sjc = new_prices.get('sjc', {}).get('results', [{}])[0]
+            old_sjc = (self.last_prices.get('sjc', {}).get('results') or [{}])[0]
+            new_sjc = (new_prices.get('sjc', {}).get('results') or [{}])[0]
             
             # Check key price fields
             for field in ['buy_1l', 'sell_1l', 'buy_nhan1c', 'sell_nhan1c']:
@@ -158,9 +183,9 @@ class ConnectionManager:
                     except ValueError:
                         pass
             
-            if has_changed:
-                self.last_prices = new_prices
-                return True, alerts
+        if has_changed:
+            self.last_prices = new_prices
+            return True, alerts
         
         return False, alerts
 
@@ -179,17 +204,19 @@ async def background_price_checker():
             await manager.broadcast({
                 "type": "crawler_status",
                 "status": "running",
-                "message": "Đang chạy AI Crawler để lấy giá SJC..."
+                "message": "Dang crawl song song WebGia/SJC, DOJI va PNJ..."
             })
             
+            current_data = {}
             # Fetch current prices via AI Crawler
             if collector:
                 current_data = collector.collect_current_prices()
                 
-            if current_data and 'sjc' in current_data and current_data['sjc']:
-                sjc_data = {'results': current_data['sjc']}
+            if current_data:
                 prices = {
-                    'sjc': sjc_data
+                    'sjc': current_data.get('sjc', empty_source('Missing SJC payload')),
+                    'doji': current_data.get('doji', empty_source('Missing DOJI payload')),
+                    'pnj': current_data.get('pnj', empty_source('Missing PNJ payload')),
                 }
                 
                 # Check for changes
@@ -200,9 +227,7 @@ async def background_price_checker():
                     # Save to CSV if collector available
                     if collector:
                         try:
-                            data = {}
-                            if sjc_data and 'results' in sjc_data:
-                                data['sjc'] = sjc_data['results']
+                            data = successful_sources(prices)
                             if data:
                                 collector.append_to_csv(data)
                         except Exception as e:
@@ -290,20 +315,15 @@ async def health_check():
 
 @app.get("/api/current-prices")
 async def get_current_prices(save_to_csv: bool = Query(True, description="Save current prices to CSV")):
-    """Get current gold prices from SJC using AI Crawler"""
-    sjc_data = None
+    """Get current gold prices from SJC/WebGia, DOJI, and PNJ using the multi-source crawler."""
+    current_data = {}
     if collector:
         current_data = collector.collect_current_prices()
-        if current_data and 'sjc' in current_data and current_data['sjc']:
-            sjc_data = {'results': current_data['sjc']}
 
     # Save to CSV if requested and collector is available
     if save_to_csv and collector:
         try:
-            data = {}
-            if sjc_data and 'results' in sjc_data:
-                data['sjc'] = sjc_data['results']
-
+            data = successful_sources(current_data)
             if data:
                 collector.append_to_csv(data)
         except Exception as e:
@@ -311,7 +331,9 @@ async def get_current_prices(save_to_csv: bool = Query(True, description="Save c
 
     return {
         'timestamp': datetime.now().isoformat(),
-        'sjc': sjc_data
+        'sjc': current_data.get('sjc', empty_source('Missing SJC payload')),
+        'doji': current_data.get('doji', empty_source('Missing DOJI payload')),
+        'pnj': current_data.get('pnj', empty_source('Missing PNJ payload')),
     }
 
 @app.post("/api/update-historical-data")
@@ -391,6 +413,8 @@ async def get_prices_by_date(date: str = Query(..., description="Date in YYYY-MM
 
         # Read prices for the specified date
         sjc_prices = {}
+        doji_prices = []
+        pnj_prices = []
 
         with open(csv_file, 'r', encoding='utf-8') as f:
             reader = csv.DictReader(f)
@@ -403,36 +427,62 @@ async def get_prices_by_date(date: str = Query(..., description="Date in YYYY-MM
                 gold_type = row.get('gold_type', '')
                 buy_price = row.get('buy_price', '')
                 sell_price = row.get('sell_price', '')
+                location = row.get('location', '')
 
-                # Only process SJC data
-                if company != 'SJC':
-                    continue
+                if company == 'SJC':
+                    # Map gold types to API field names
+                    if gold_type == 'SJC 1L':
+                        sjc_prices['buy_1l'] = buy_price
+                        sjc_prices['sell_1l'] = sell_price
+                    elif gold_type == 'SJC Ring 1C':
+                        sjc_prices['buy_nhan1c'] = buy_price
+                        sjc_prices['sell_nhan1c'] = sell_price
+                    elif gold_type == 'SJC Jewelry 24K':
+                        sjc_prices['buy_nutrang_9999'] = buy_price
+                        sjc_prices['sell_nutrang_9999'] = sell_price
+                    elif gold_type == 'SJC Jewelry 99%':
+                        sjc_prices['buy_nutrang_99'] = buy_price
+                        sjc_prices['sell_nutrang_99'] = sell_price
+                    elif gold_type == 'SJC Jewelry 18K':
+                        sjc_prices['buy_nutrang_75'] = buy_price
+                        sjc_prices['sell_nutrang_75'] = sell_price
+                elif company == 'DOJI':
+                    doji_prices.append({
+                        'company': 'DOJI',
+                        'gold_type': gold_type,
+                        'buy_price': buy_price,
+                        'sell_price': sell_price,
+                        'location': location
+                    })
+                elif company == 'PNJ':
+                    pnj_prices.append({
+                        'company': 'PNJ',
+                        'gold_type': gold_type,
+                        'buy_price': buy_price,
+                        'sell_price': sell_price,
+                        'location': location
+                    })
 
-                # Map gold types to API field names
-                if gold_type == 'SJC 1L':
-                    sjc_prices['buy_1l'] = buy_price
-                    sjc_prices['sell_1l'] = sell_price
-                elif gold_type == 'SJC Ring 1C':
-                    sjc_prices['buy_nhan1c'] = buy_price
-                    sjc_prices['sell_nhan1c'] = sell_price
-                elif gold_type == 'SJC Jewelry 24K':
-                    sjc_prices['buy_nutrang_9999'] = buy_price
-                    sjc_prices['sell_nutrang_9999'] = sell_price
-                elif gold_type == 'SJC Jewelry 99%':
-                    sjc_prices['buy_nutrang_99'] = buy_price
-                    sjc_prices['sell_nutrang_99'] = sell_price
-                elif gold_type == 'SJC Jewelry 18K':
-                    sjc_prices['buy_nutrang_75'] = buy_price
-                    sjc_prices['sell_nutrang_75'] = sell_price
-
-        if not sjc_prices:
+        if not sjc_prices and not doji_prices and not pnj_prices:
             raise HTTPException(status_code=404, detail=f"No data found for date {date}")
 
         # Return in same format as current prices API
         return {
             'timestamp': f"{date}T00:00:00",
             'sjc': {
-                'results': [sjc_prices]
+                'status': 'ok' if sjc_prices else 'empty',
+                'results': [sjc_prices] if sjc_prices else [],
+                'error': None if sjc_prices else 'No SJC data for date'
+            },
+            'doji': {
+                'status': 'ok' if doji_prices else 'empty',
+                'results': doji_prices,
+                'error': None if doji_prices else 'No DOJI data for date'
+            },
+            'pnj': {
+                'status': 'ok' if pnj_prices else 'empty',
+                'results': pnj_prices,
+                'error': None if pnj_prices else 'No PNJ data for date'
             }
         }
     except HTTPException:
@@ -442,16 +492,16 @@ async def get_prices_by_date(date: str = Query(..., description="Date in YYYY-MM
 
 @app.get("/api/historical-prices")
 async def get_historical_prices(
-    company: str = Query(..., description="Company name (sjc only)"),
+    company: str = Query(..., description="Company name (sjc, doji, or pnj)"),
     days: int = Query(7, description="Number of days to fetch", ge=1, le=365)
 ):
-    """Get historical gold prices for SJC only (DOJI and PNJ removed)"""
+    """Get historical gold prices from the external API where available."""
     date_to = datetime.now().strftime('%Y-%m-%d')
     date_from = (datetime.now() - timedelta(days=days)).strftime('%Y-%m-%d')
 
     company_lower = company.lower()
-    if company_lower not in ['sjc']:
-        raise HTTPException(status_code=400, detail="Invalid company. Must be sjc")
+    if company_lower not in ['sjc', 'doji', 'pnj']:
+        raise HTTPException(status_code=400, detail="Invalid company. Must be sjc, doji, or pnj")
 
     data = api.get_company_price(company_lower, date_from, date_to)
 
@@ -462,10 +512,10 @@ async def get_historical_prices(
 
 @app.get("/api/analytics/price-change")
 async def get_price_change(
-    company: str = Query(..., description="Company name (SJC only)"),
+    company: str = Query(..., description="Company name (SJC, DOJI, or PNJ)"),
     days: int = Query(7, description="Number of days to analyze", ge=1, le=365)
 ):
-    """Get price change analysis for SJC only"""
+    """Get price change analysis."""
     if not analyzer:
         raise HTTPException(status_code=500, detail="Analyzer service unavailable")
 
@@ -477,10 +527,10 @@ async def get_price_change(
 
 @app.get("/api/analytics/volatility")
 async def get_volatility(
-    company: str = Query(..., description="Company name (SJC only)"),
+    company: str = Query(..., description="Company name (SJC, DOJI, or PNJ)"),
     days: int = Query(30, description="Number of days to analyze", ge=1, le=365)
 ):
-    """Get price volatility analysis for SJC only"""
+    """Get price volatility analysis."""
     if not analyzer:
         raise HTTPException(status_code=500, detail="Analyzer service unavailable")
 
@@ -492,10 +542,10 @@ async def get_volatility(
 
 @app.get("/api/analytics/extremes")
 async def get_price_extremes(
-    company: str = Query(..., description="Company name (SJC only)"),
+    company: str = Query(..., description="Company name (SJC, DOJI, or PNJ)"),
     days: int = Query(30, description="Number of days to analyze", ge=1, le=365)
 ):
-    """Get price extremes (min/max) for SJC only"""
+    """Get price extremes (min/max)."""
     if not analyzer:
         raise HTTPException(status_code=500, detail="Analyzer service unavailable")
 
@@ -507,12 +557,12 @@ async def get_price_extremes(
 
 @app.get("/api/analytics/trends")
 async def get_trends(
-    company: str = Query(..., description="Company name (SJC only)"),
+    company: str = Query(..., description="Company name (SJC, DOJI, or PNJ)"),
     period: str = Query('weekly', description="Time period (weekly, monthly, quarterly, yearly)"),
     gold_type: Optional[str] = Query(None, description="Gold type (e.g., 'SJC 1L')"),
     location: Optional[str] = Query(None, description="Location (e.g., 'National')")
 ):
-    """Get price trends for SJC only"""
+    """Get price trends for a company, gold type, and optional location."""
     if not analyzer:
         raise HTTPException(status_code=500, detail="Analyzer service unavailable")
 
@@ -536,7 +586,9 @@ async def get_trends(
         ma_data = analyzer.get_moving_average(
             company.upper(),
             days_back=days,
-            window=7
+            window=7,
+            location=location,
+            gold_type=gold_type
         )
 
         return {
@@ -559,6 +611,28 @@ async def get_company_comparison(
     try:
         comparison_data = analyzer.compare_companies(days_back=days)
         return comparison_data
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+@app.get("/api/analytics/source-momentum")
+async def get_source_momentum(
+    scope: str = Query('main', description="Momentum scope: main or all"),
+    compare: str = Query('previous', description="Comparison mode: previous")
+):
+    """Compare latest saved source rows against their previous crawl."""
+    if not analyzer:
+        raise HTTPException(status_code=500, detail="Analyzer service unavailable")
+
+    scope_lower = scope.lower()
+    compare_lower = compare.lower()
+
+    if scope_lower not in ['main', 'all']:
+        raise HTTPException(status_code=400, detail="Invalid scope. Must be main or all")
+    if compare_lower != 'previous':
+        raise HTTPException(status_code=400, detail="Invalid compare. Must be previous")
+
+    try:
+        return analyzer.get_source_momentum(scope=scope_lower, compare=compare_lower)
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
 

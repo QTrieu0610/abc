@@ -2060,3 +2060,124 @@ canvas {
   box-shadow: 0 0 20px rgba(212, 175, 55, 0.6);
 }
 
+/* ============================================
+   THREE-SOURCE MARKET GRID
+   ============================================ */
+
+.market-source-grid {
+  align-items: stretch;
+}
+
+.market-source-grid > [class*="col-"] {
+  display: flex;
+}
+
+.market-source-grid .price-hero-card {
+  min-height: 100%;
+  border-radius: 22px;
+}
+
+.market-source-grid .price-hero-card:hover {
+  transform: translateY(-6px);
+}
+
+.market-source-grid .price-hero-banner {
+  min-height: 100%;
+  height: 100%;
+  padding: clamp(1.25rem, 1.8vw, 1.8rem);
+  flex-direction: column !important;
+  align-items: stretch !important;
+  justify-content: space-between;
+  gap: 1.25rem;
+}
+
+.market-source-grid .price-hero-banner .banner-main {
+  flex: 1 1 auto;
+}
+
+.market-source-grid .price-hero-banner .banner-meta {
+  flex: 0 0 auto;
+  align-items: flex-start !important;
+  text-align: left !important;
+  gap: 0.55rem;
+}
+
+.market-source-grid .price-hero-icon {
+  width: 46px;
+  height: 46px;
+  border-radius: 14px;
+  font-size: 1.15rem;
+  flex: 0 0 auto;
+}
+
+.market-source-grid .price-hero-title {
+  font-size: clamp(1.25rem, 1.45vw, 1.65rem);
+  line-height: 1.12;
+  letter-spacing: 0;
+}
+
+.market-source-grid .price-hero-values {
+  flex-direction: column !important;
+  align-items: stretch !important;
+  gap: 0.85rem;
+  padding: 1rem;
+  border-radius: 16px;
+}
+
+.market-source-grid .price-hero-divider {
+  display: none !important;
+}
+
+.market-source-grid .price-hero-value .label {
+  font-size: 0.68rem;
+  letter-spacing: 0.08em;
+}
+
+.market-source-grid .price-hero-value .value {
+  font-size: clamp(1.25rem, 1.55vw, 1.75rem);
+  line-height: 1.14;
+  white-space: normal;
+  overflow: visible;
+  text-overflow: clip;
+  overflow-wrap: anywhere;
+  word-break: normal;
+}
+
+.market-source-grid .price-hero-value .currency {
+  font-size: 0.46em;
+}
+
+.market-source-grid .hero-subtext {
+  max-width: 100%;
+  overflow-wrap: anywhere;
+  line-height: 1.35;
+}
+
+@media (min-width: 1400px) {
+  .market-source-grid .price-hero-title {
+    font-size: clamp(1.35rem, 1.25vw, 1.75rem);
+  }
+}
+
+@media (min-width: 1200px) {
+  .price-hero-stats {
+    grid-template-columns: repeat(5, minmax(0, 1fr));
+  }
+}
+
+@media (max-width: 1399.98px) {
+  .market-source-grid .price-hero-title {
+    font-size: clamp(1.2rem, 2vw, 1.55rem);
+  }
+}
+
+@media (max-width: 767.98px) {
+  .market-source-grid .price-hero-banner {
+    padding: 1.25rem;
+  }
+
+  .market-source-grid .price-hero-value .value {
+    font-size: 1.45rem;
+  }
+}
+
