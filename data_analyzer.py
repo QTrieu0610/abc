@@ -39,21 +39,23 @@ class GoldPriceAnalyzer:
     
     def load_data(self) -> List[Dict]:
         """Load data from CSV file"""
-        if not os.path.exists(self.csv_file):
-            return []
-        
-        rows = []
-        with open(self.csv_file, 'r', encoding='utf-8') as csvfile:
-            reader = csv.DictReader(csvfile)
-            for row in reader:
-                # Convert price strings to floats
-                if row.get('buy_price'):
-                    row['buy_price'] = float(row['buy_price'])
-                if row.get('sell_price'):
-                    row['sell_price'] = float(row['sell_price'])
-                rows.append(row)
-        
-        return rows
+        from data_collector import csv_lock
+        with csv_lock:
+            if not os.path.exists(self.csv_file):
+                return []
+            
+            rows = []
+            with open(self.csv_file, 'r', encoding='utf-8') as csvfile:
+                reader = csv.DictReader(csvfile)
+                for row in reader:
+                    # Convert price strings to floats
+                    if row.get('buy_price'):
+                        row['buy_price'] = float(row['buy_price'])
+                    if row.get('sell_price'):
+                        row['sell_price'] = float(row['sell_price'])
+                    rows.append(row)
+            
+            return rows
     
     def reload_data(self):
         """Reload data from CSV file to get latest updates"""

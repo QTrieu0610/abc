@@ -1,0 +1,95 @@
+{
+    "cookies": [
+        {
+            "name": "_ga",
+            "value": "GA1.2.1692684901.1781841114",
+            "domain": ".webgia.com",
+            "path": "/",
+            "expires": 1816401114.141869,
+            "httpOnly": false,
+            "secure": false,
+            "sameSite": "Lax"
+        },
+        {
+            "name": "_gid",
+            "value": "GA1.2.411972042.1781841114",
+            "domain": ".webgia.com",
+            "path": "/",
+            "expires": 1781927514,
+            "httpOnly": false,
+            "secure": false,
+            "sameSite": "Lax"
+        },
+        {
+            "name": "_gat",
+            "value": "1",
+            "domain": ".webgia.com",
+            "path": "/",
+            "expires": 1781841174,
+            "httpOnly": false,
+            "secure": false,
+            "sameSite": "Lax"
+        },
+        {
+            "name": "_ga_BJ4M4XBSQD",
+            "value": "GS2.2.s1781841114$o1$g0$t1781841114$j60$l0$h0",
+            "domain": ".webgia.com",
+            "path": "/",
+            "expires": 1816401114.628857,
+            "httpOnly": false,
+            "secure": false,
+            "sameSite": "Lax"
+        },
+        {
+            "name": "IDE",
+            "value": "AHWqTUncuC09aiiCx97coIMugOE446sjsltCuG4DSQ0oEDH1mp0loeCd94Ft8-DnSAY",
+            "domain": ".doubleclick.net",
+            "path": "/",
+            "expires": 1816401115.488129,
+            "httpOnly": true,
+            "secure": true,
+            "sameSite": "None"
+        },
+        {
+            "name": "__gads",
+            "value": "ID=121ec376134229ae:T=1781841119:RT=1781841119:S=ALNI_MY9vyWYY88n89r7v3S1itFGeNE7JA",
+            "domain": ".webgia.com",
+            "path": "/",
+            "expires": 1815537119,
+            "httpOnly": false,
+            "secure": true,
+            "sameSite": "None"
+        },
+        {
+            "name": "__gpi",
+            "value": "UID=0000147580762df5:T=1781841119:RT=1781841119:S=ALNI_MaqTByqS5CmLfewLd_jgh4F-3tpyg",
+            "domain": ".webgia.com",
+            "path": "/",
+            "expires": 1815537119,
+            "httpOnly": false,
+            "secure": true,
+            "sameSite": "None"
+        },
+        {
+            "name": "__eoi",
+            "value": "ID=09bca0c06383c4d5:T=1781841119:RT=1781841119:S=AA-AfjYnvhPOVXj1cKNGo4hOOJGg",
+            "domain": ".webgia.com",
+            "path": "/",
+            "expires": 1797393119,
+            "httpOnly": false,
+            "secure": true,
+            "sameSite": "None"
+        }
+    ],
+    "origins": [
+        {
+            "origin": "https://webgia.com",
+            "localStorage": [
+                {
+                    "name": "google_adsense_settings",
+                    "value": "{\"ca-pub-1166491378897634\":[\"ca-pub-1166491378897634\",[[1]]]}"
+                }
+            ]
+        }
+    ]
+}

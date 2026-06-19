@@ -77,7 +77,7 @@ function sourceMessage(data) {
 }
 
 export default function HousePricePage() {
-  const [browserFallback, setBrowserFallback] = useState(false);
+  const [browserFallback, setBrowserFallback] = useState(true);
   const [maxPages, setMaxPages] = useState(1);
 
   const fetchHousePrices = useMemo(

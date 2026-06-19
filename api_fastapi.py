@@ -126,10 +126,17 @@ def safe_session_metadata(session_dir: str = "sessions") -> List[Dict[str, Any]]
             with open(path, "r", encoding="utf-8") as handle:
                 payload = json.load(handle)
         except Exception as e:
+            profile_name = filename.replace("crawler_session_", "").replace(".json", "")
+            if profile_name in ["sjc", "doji", "pnj", "gold"]:
+                topic = "Gold Price"
+            elif profile_name in ["batdongsan", "alonhadat"]:
+                topic = "Real Estate"
+            else:
+                topic = "Unknown"
             sessions.append({
-                "session_name": filename.replace("crawler_session_", "").replace(".json", ""),
+                "session_name": profile_name,
                 "source": "unknown",
-                "topic": "Unknown",
+                "topic": topic,
                 "login_status": "unreadable",
                 "last_used": None,
                 "mfa_required": "unknown",
@@ -152,11 +159,17 @@ def safe_session_metadata(session_dir: str = "sessions") -> List[Dict[str, Any]]
             if isinstance(cookie, dict) and cookie.get("domain")
         })
         profile_name = filename.replace("crawler_session_", "").replace(".json", "")
+        if profile_name in ["sjc", "doji", "pnj", "gold"]:
+            topic = "Gold Price"
+        elif profile_name in ["batdongsan", "alonhadat"]:
+            topic = "Real Estate"
+        else:
+            topic = "Crawler Session"
 
         sessions.append({
             "session_name": profile_name,
             "source": ", ".join(domains) if domains else "N/A",
-            "topic": "Crawler Session",
+            "topic": topic,
             "login_status": "stored" if cookies else "empty",
             "last_used": datetime.fromtimestamp(stat.st_mtime).isoformat(),
             "mfa_required": "unknown",
@@ -192,17 +205,30 @@ def source_job_from_payload(source_name: str, payload: Dict[str, Any], timestamp
         "sjc": "webgia.com / sjc.com.vn",
         "doji": "giavang.doji.vn",
         "pnj": "pnj.com.vn/site/gia-vang",
+        "batdongsan": "batdongsan.com.vn",
+        "alonhadat": "alonhadat.com.vn",
     }
 
+    is_real_estate = source_name in ["batdongsan", "alonhadat"]
+
+    if is_real_estate:
+        job_name = f"Real Estate {source_name.title() if source_name == 'alonhadat' else 'Batdongsan'}"
+        profile = f"crawler_session_{source_name}"
+        topic = "Real Estate"
+    else:
+        job_name = f"Gold Price {source_upper}"
+        profile = "crawler_session_default" if source_name not in ["sjc", "doji", "pnj"] else f"crawler_session_{source_name}"
+        topic = "Gold Price"
+
     return {
-        "job_name": f"Gold Price {source_upper}",
+        "job_name": job_name,
         "target_site": target_sites.get(source_name, source_name),
-        "profile": "crawler_session_default",
+        "profile": profile,
         "status": job_status,
         "source_status": status,
         "progress": progress,
         "records": len(results),
-        "topic": "Gold Price",
+        "topic": topic,
         "source": source_upper,
         "last_run": timestamp,
         "message": error or ("Backend source returned records." if results else "No records returned."),
@@ -215,6 +241,7 @@ class ConnectionManager:
     def __init__(self):
         self.active_connections: List[WebSocket] = []
         self.last_prices: Optional[Dict] = None
+        self.last_house_prices: Optional[Dict] = None
     
     async def connect(self, websocket: WebSocket):
         """Accept and store new WebSocket connection"""
@@ -444,7 +471,7 @@ async def background_price_checker():
             current_data = {}
             # Fetch current prices via AI Crawler
             if collector:
-                current_data = collector.collect_current_prices()
+                current_data = await asyncio.to_thread(collector.collect_current_prices)
                 
             if current_data:
                 prices = {
@@ -460,12 +487,12 @@ async def background_price_checker():
                     
                     # Save to CSV if collector available
                     if collector:
-                        try:
-                            data = successful_sources(prices)
-                            if data:
-                                collector.append_to_csv(data)
-                        except Exception as e:
-                            print(f"Error saving to CSV: {e}")
+                           try:
+                               data = successful_sources(prices)
+                               if data:
+                                   await asyncio.to_thread(collector.append_to_csv, data)
+                           except Exception as e:
+                               print(f"Error saving to CSV: {e}")
                     
                     # Broadcast update to all connected clients
                     await manager.broadcast({
@@ -497,8 +524,8 @@ async def background_price_checker():
                 "message": f"Lỗi Crawler: {str(e)}"
             })
         
-        # Wait 60 seconds before next check
-        await asyncio.sleep(60)
+        # Wait 300 seconds before next check
+        await asyncio.sleep(300)
 
 # Pydantic models for request/response validation
 class PriceData(BaseModel):
@@ -560,14 +587,14 @@ async def get_current_prices(save_to_csv: bool = Query(True, description="Save c
     """Get current gold prices from SJC/WebGia, DOJI, and PNJ using the multi-source crawler."""
     current_data = {}
     if collector:
-        current_data = collector.collect_current_prices()
+        current_data = await asyncio.to_thread(collector.collect_current_prices)
 
     # Save to CSV if requested and collector is available
     if save_to_csv and collector:
         try:
             data = successful_sources(current_data)
             if data:
-                collector.append_to_csv(data)
+                await asyncio.to_thread(collector.append_to_csv, data)
         except Exception as e:
             print(f"Error saving to CSV: {e}")
 
@@ -588,7 +615,7 @@ async def get_current_prices(save_to_csv: bool = Query(True, description="Save c
 @app.get("/api/house-prices")
 async def get_house_prices(
     max_pages: int = Query(1, ge=1, le=5, description="Number of listing pages to crawl per source"),
-    use_browser_fallback: bool = Query(False, description="Use Playwright if static HTML fetch is blocked"),
+    use_browser_fallback: bool = Query(True, description="Use Playwright if static HTML fetch is blocked"),
 ):
     """Get current real-estate listing prices from configured housing sources."""
     try:
@@ -598,18 +625,24 @@ async def get_house_prices(
             max_pages=max_pages,
             use_browser_fallback=use_browser_fallback,
         )
-        current_data = crawler.execute_crawling()
+        current_data = await asyncio.to_thread(crawler.execute_crawling)
     except Exception as e:
         current_data = {
             "batdongsan": empty_source(str(e)),
             "alonhadat": empty_source(str(e)),
         }
 
+    prices = {
+        "batdongsan": current_data.get("batdongsan", empty_source("Missing Batdongsan payload")),
+        "alonhadat": current_data.get("alonhadat", empty_source("Missing AloNhaDat payload")),
+    }
+
+    manager.last_house_prices = prices
+
     return {
         "timestamp": datetime.now().isoformat(),
         "topic": "house-price",
-        "batdongsan": current_data.get("batdongsan", empty_source("Missing Batdongsan payload")),
-        "alonhadat": current_data.get("alonhadat", empty_source("Missing AloNhaDat payload")),
+        **prices
     }
 
 
@@ -632,7 +665,7 @@ async def get_crawl_jobs(refresh: bool = Query(False, description="Refresh curre
     prices = manager.last_prices
 
     if (refresh or not prices) and collector:
-        current_data = collector.collect_current_prices()
+        current_data = await asyncio.to_thread(collector.collect_current_prices)
         prices = {
             'sjc': current_data.get('sjc', empty_source('Missing SJC payload')),
             'doji': current_data.get('doji', empty_source('Missing DOJI payload')),
@@ -646,10 +679,17 @@ async def get_crawl_jobs(refresh: bool = Query(False, description="Refresh curre
         'pnj': empty_source('No crawler snapshot available yet'),
     }
 
+    house_prices = manager.last_house_prices or {
+        'batdongsan': empty_source('No crawler snapshot available yet'),
+        'alonhadat': empty_source('No crawler snapshot available yet'),
+    }
+
     jobs = [
         source_job_from_payload('sjc', prices.get('sjc', empty_source('Missing SJC payload')), timestamp),
         source_job_from_payload('doji', prices.get('doji', empty_source('Missing DOJI payload')), timestamp),
         source_job_from_payload('pnj', prices.get('pnj', empty_source('Missing PNJ payload')), timestamp),
+        source_job_from_payload('batdongsan', house_prices.get('batdongsan', empty_source('Missing Batdongsan payload')), timestamp),
+        source_job_from_payload('alonhadat', house_prices.get('alonhadat', empty_source('Missing AloNhaDat payload')), timestamp),
     ]
 
     return {
@@ -766,7 +806,7 @@ async def update_historical_data():
         raise HTTPException(status_code=503, detail="Data collector service unavailable")
 
     try:
-        result = collector.fetch_missing_data()
+        result = await asyncio.to_thread(collector.fetch_missing_data)
         return {
             'success': True,
             'timestamp': datetime.now().isoformat(),
@@ -775,67 +815,31 @@ async def update_historical_data():
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Error updating historical data: {str(e)}")
 
-@app.get("/api/available-dates")
-async def get_available_dates():
-    """
-    Get list of available dates from the CSV file for historical price lookup
-    """
-    if not collector:
-        raise HTTPException(status_code=503, detail="Data collector service unavailable")
-
-    try:
-        import csv
-        import os
-        from collections import OrderedDict
-
-        csv_file = os.path.join(collector.DATA_DIR, 'historical_gold_prices.csv')
-
-        if not os.path.exists(csv_file):
-            return {'dates': []}
-
-        # Read all unique dates from CSV
-        dates_set = set()
+def _read_available_dates_sync(csv_file) -> list:
+    from data_collector import csv_lock
+    import csv
+    if not os.path.exists(csv_file):
+        return []
+    dates_set = set()
+    with csv_lock:
         with open(csv_file, 'r', encoding='utf-8') as f:
             reader = csv.DictReader(f)
             for row in reader:
                 timestamp = row.get('timestamp', '')
                 if timestamp:
-                    # Extract just the date part (YYYY-MM-DD)
                     date_part = timestamp.split(' ')[0] if ' ' in timestamp else timestamp
                     dates_set.add(date_part)
+    return sorted(list(dates_set), reverse=True)
 
-        # Sort dates in descending order (newest first)
-        dates_list = sorted(list(dates_set), reverse=True)
-
-        return {
-            'dates': dates_list,
-            'count': len(dates_list)
-        }
-    except Exception as e:
-        raise HTTPException(status_code=500, detail=f"Error fetching available dates: {str(e)}")
-
-@app.get("/api/prices-by-date")
-async def get_prices_by_date(date: str = Query(..., description="Date in YYYY-MM-DD format")):
-    """
-    Get gold prices for a specific date from the CSV file
-    """
-    if not collector:
-        raise HTTPException(status_code=503, detail="Data collector service unavailable")
-
-    try:
-        import csv
-        import os
-
-        csv_file = os.path.join(collector.DATA_DIR, 'historical_gold_prices.csv')
-
-        if not os.path.exists(csv_file):
-            raise HTTPException(status_code=404, detail="Historical data file not found")
-
-        # Read prices for the specified date
-        sjc_prices = {}
-        doji_prices = []
-        pnj_prices = []
-
+def _read_prices_by_date_sync(csv_file, date) -> Optional[Tuple[Dict, List[Dict], List[Dict]]]:
+    from data_collector import csv_lock
+    import csv
+    if not os.path.exists(csv_file):
+        return None
+    sjc_prices = {}
+    doji_prices = []
+    pnj_prices = []
+    with csv_lock:
         with open(csv_file, 'r', encoding='utf-8') as f:
             reader = csv.DictReader(f)
             for row in reader:
@@ -850,7 +854,6 @@ async def get_prices_by_date(date: str = Query(..., description="Date in YYYY-MM
                 location = row.get('location', '')
 
                 if company == 'SJC':
-                    # Map gold types to API field names
                     if gold_type == 'SJC 1L':
                         sjc_prices['buy_1l'] = buy_price
                         sjc_prices['sell_1l'] = sell_price
@@ -882,6 +885,46 @@ async def get_prices_by_date(date: str = Query(..., description="Date in YYYY-MM
                         'sell_price': sell_price,
                         'location': location
                     })
+    return sjc_prices, doji_prices, pnj_prices
+
+@app.get("/api/available-dates")
+async def get_available_dates():
+    """
+    Get list of available dates from the CSV file for historical price lookup
+    """
+    if not collector:
+        raise HTTPException(status_code=503, detail="Data collector service unavailable")
+
+    try:
+        import os
+        csv_file = os.path.join(collector.DATA_DIR, 'historical_gold_prices.csv')
+
+        dates_list = await asyncio.to_thread(_read_available_dates_sync, csv_file)
+
+        return {
+            'dates': dates_list,
+            'count': len(dates_list)
+        }
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Error fetching available dates: {str(e)}")
+
+@app.get("/api/prices-by-date")
+async def get_prices_by_date(date: str = Query(..., description="Date in YYYY-MM-DD format")):
+    """
+    Get gold prices for a specific date from the CSV file
+    """
+    if not collector:
+        raise HTTPException(status_code=503, detail="Data collector service unavailable")
+
+    try:
+        import os
+        csv_file = os.path.join(collector.DATA_DIR, 'historical_gold_prices.csv')
+
+        result = await asyncio.to_thread(_read_prices_by_date_sync, csv_file, date)
+        if result is None:
+            raise HTTPException(status_code=404, detail="Historical data file not found")
+
+        sjc_prices, doji_prices, pnj_prices = result
 
         if not sjc_prices and not doji_prices and not pnj_prices:
             raise HTTPException(status_code=404, detail=f"No data found for date {date}")
@@ -923,7 +966,7 @@ async def get_historical_prices(
     if company_lower not in ['sjc', 'doji', 'pnj']:
         raise HTTPException(status_code=400, detail="Invalid company. Must be sjc, doji, or pnj")
 
-    data = api.get_company_price(company_lower, date_from, date_to)
+    data = await asyncio.to_thread(api.get_company_price, company_lower, date_from, date_to)
 
     if not data:
         raise HTTPException(status_code=500, detail="Failed to fetch data from API")
@@ -940,7 +983,7 @@ async def get_price_change(
         raise HTTPException(status_code=500, detail="Analyzer service unavailable")
 
     try:
-        change_data = analyzer.calculate_price_change(company.upper(), days_back=days)
+        change_data = await asyncio.to_thread(analyzer.calculate_price_change, company.upper(), days_back=days)
         return change_data
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
@@ -955,7 +998,7 @@ async def get_volatility(
         raise HTTPException(status_code=500, detail="Analyzer service unavailable")
 
     try:
-        volatility_data = analyzer.calculate_volatility(company.upper(), days_back=days)
+        volatility_data = await asyncio.to_thread(analyzer.calculate_volatility, company.upper(), days_back=days)
         return volatility_data
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
@@ -970,7 +1013,7 @@ async def get_price_extremes(
         raise HTTPException(status_code=500, detail="Analyzer service unavailable")
 
     try:
-        extremes_data = analyzer.get_price_extremes(company.upper(), days_back=days)
+        extremes_data = await asyncio.to_thread(analyzer.get_price_extremes, company.upper(), days_back=days)
         return extremes_data
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
@@ -997,13 +1040,15 @@ async def get_trends(
     days = period_map.get(period, 7)
 
     try:
-        trends_data = analyzer.get_price_trends(
+        trends_data = await asyncio.to_thread(
+            analyzer.get_price_trends,
             company.upper(),
             days_back=days,
             location=location,
             gold_type=gold_type
         )
-        ma_data = analyzer.get_moving_average(
+        ma_data = await asyncio.to_thread(
+            analyzer.get_moving_average,
             company.upper(),
             days_back=days,
             window=7,
@@ -1029,7 +1074,7 @@ async def get_company_comparison(
         raise HTTPException(status_code=500, detail="Analyzer service unavailable")
     
     try:
-        comparison_data = analyzer.compare_companies(days_back=days)
+        comparison_data = await asyncio.to_thread(analyzer.compare_companies, days_back=days)
         return comparison_data
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
@@ -1052,7 +1097,7 @@ async def get_source_momentum(
         raise HTTPException(status_code=400, detail="Invalid compare. Must be previous")
 
     try:
-        return analyzer.get_source_momentum(scope=scope_lower, compare=compare_lower)
+        return await asyncio.to_thread(analyzer.get_source_momentum, scope=scope_lower, compare=compare_lower)
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
 
@@ -1071,13 +1116,13 @@ async def export_csv():
     )
 
 @app.post("/api/data/update")
-async def update_historical_data():
+async def update_historical_data_latest():
     """Update historical data with latest prices"""
     if not collector:
         raise HTTPException(status_code=500, detail="Data collector unavailable")
     
     try:
-        collector.update_csv_with_latest()
+        await asyncio.to_thread(collector.update_csv_with_latest)
         return {
             'status': 'success',
             'message': 'Historical data updated',
@@ -1143,7 +1188,7 @@ async def startup_event():
     if collector:
         print("\n[*] Checking for missing historical data...")
         try:
-            result = collector.fetch_missing_data()
+            result = await asyncio.to_thread(collector.fetch_missing_data)
             print(f"[+] Status: {result.get('status')}")
             print(f"[+] {result.get('message')}")
             if result.get('records_added', 0) > 0:

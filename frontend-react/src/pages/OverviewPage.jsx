@@ -195,7 +195,7 @@ export default function OverviewPage() {
     const topicRequests =
       selectedTopic === "house-price"
         ? [
-            settle("housePrices", getHousePrices({ max_pages: 1, use_browser_fallback: false })),
+            settle("housePrices", getHousePrices({ max_pages: 1, use_browser_fallback: true })),
             settle("availableDates", Promise.resolve(null)),
             settle("trends", Promise.resolve(null)),
             settle("sourceMomentum", Promise.resolve(null)),

@@ -9,6 +9,10 @@ import os
 from datetime import datetime, timedelta
 from typing import List, Dict, Optional
 import time
+import threading
+
+# Module level re-entrant lock for thread-safe CSV reads/writes
+csv_lock = threading.RLock()
 
 try:
     from config import API_KEY
@@ -363,11 +367,11 @@ class HistoricalDataCollector:
         # Write to CSV
         if rows:
             fieldnames = ['timestamp', 'company', 'gold_type', 'buy_price', 'sell_price', 'location']
-            
-            with open(filename, 'w', newline='', encoding='utf-8') as csvfile:
-                writer = csv.DictWriter(csvfile, fieldnames=fieldnames)
-                writer.writeheader()
-                writer.writerows(rows)
+            with csv_lock:
+                with open(filename, 'w', newline='', encoding='utf-8') as csvfile:
+                    writer = csv.DictWriter(csvfile, fieldnames=fieldnames)
+                    writer.writeheader()
+                    writer.writerows(rows)
             
             print(f"\n[+] Data saved to {filename}")
             print(f"  Total records: {len(rows)}")
@@ -578,45 +582,46 @@ class HistoricalDataCollector:
 
         # Check for duplicates before appending
         if rows:
-            existing_data = self.load_csv_data(filename)
+            with csv_lock:
+                existing_data = self.load_csv_data(filename)
 
-            existing_map = {}
-            for row in existing_data:
-                key = self._build_row_key(row)
-                if key in existing_map:
-                    current_ts = existing_map[key].get('timestamp', '')
-                    row_ts = row.get('timestamp', '')
-                    if row_ts > current_ts:
+                existing_map = {}
+                for row in existing_data:
+                    key = self._build_row_key(row)
+                    if key in existing_map:
+                        current_ts = existing_map[key].get('timestamp', '')
+                        row_ts = row.get('timestamp', '')
+                        if row_ts > current_ts:
+                            existing_map[key] = row
+                    else:
                         existing_map[key] = row
-                else:
+
+                replacements = 0
+                additions = 0
+
+                for row in rows:
+                    key = self._build_row_key(row)
+                    if key in existing_map:
+                        replacements += 1
+                    else:
+                        additions += 1
                     existing_map[key] = row
 
-            replacements = 0
-            additions = 0
+                if replacements or additions:
+                    updated_rows = list(existing_map.values())
+                    updated_rows.sort(key=lambda r: r.get('timestamp', ''))
 
-            for row in rows:
-                key = self._build_row_key(row)
-                if key in existing_map:
-                    replacements += 1
+                    fieldnames = ['timestamp', 'company', 'gold_type', 'buy_price', 'sell_price', 'location']
+                    with open(filename, 'w', newline='', encoding='utf-8') as csvfile:
+                        writer = csv.DictWriter(csvfile, fieldnames=fieldnames)
+                        writer.writeheader()
+                        writer.writerows(updated_rows)
+
+                    print(f"\n[+] Data saved to {filename}")
+                    print(f"  Records replaced: {replacements}")
+                    print(f"  New records added: {additions}")
                 else:
-                    additions += 1
-                existing_map[key] = row
-
-            if replacements or additions:
-                updated_rows = list(existing_map.values())
-                updated_rows.sort(key=lambda r: r.get('timestamp', ''))
-
-                fieldnames = ['timestamp', 'company', 'gold_type', 'buy_price', 'sell_price', 'location']
-                with open(filename, 'w', newline='', encoding='utf-8') as csvfile:
-                    writer = csv.DictWriter(csvfile, fieldnames=fieldnames)
-                    writer.writeheader()
-                    writer.writerows(updated_rows)
-
-                print(f"\n[+] Data saved to {filename}")
-                print(f"  Records replaced: {replacements}")
-                print(f"  New records added: {additions}")
-            else:
-                print("\n[-] No data changes detected")
+                    print("\n[-] No data changes detected")
         else:
             print("\n[-] No data to append")
 
@@ -837,17 +842,18 @@ class HistoricalDataCollector:
         if filename is None:
             filename = os.path.join(self.DATA_DIR, 'historical_gold_prices.csv')
         
-        if not os.path.exists(filename):
-            print(f"File {filename} does not exist")
-            return []
-        
-        rows = []
-        with open(filename, 'r', encoding='utf-8') as csvfile:
-            reader = csv.DictReader(csvfile)
-            for row in reader:
-                rows.append(row)
-        
-        return rows
+        with csv_lock:
+            if not os.path.exists(filename):
+                print(f"File {filename} does not exist")
+                return []
+            
+            rows = []
+            with open(filename, 'r', encoding='utf-8') as csvfile:
+                reader = csv.DictReader(csvfile)
+                for row in reader:
+                    rows.append(row)
+            
+            return rows
 
 
 def main():

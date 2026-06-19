@@ -149,20 +149,21 @@ class GoldCrawler:
         "21": "Dong Nam Bo",
     }
 
-    def __init__(self, source: str, use_ai_fallback: bool = True, profile_name: str = "default"):
+    def __init__(self, source: str, use_ai_fallback: bool = True, profile_name: str = "gold"):
         self.source = source.lower()
         self.use_ai_fallback = use_ai_fallback
         self.profile_name = profile_name
 
+        os.makedirs("sessions", exist_ok=True)
+        self.session_file = f"sessions/crawler_session_{self.profile_name}.json"
+
         if self.source in ["sjc", "webgia"]:
             self.target_url = "https://webgia.com/gia-vang/sjc/"
             self.headers = DEFAULT_HEADERS.copy()
-            self.openai_base_url = os.environ.get("OPENAI_BASE_URL", "https://api.openai.com/v1")
+            self.ollama_url = os.environ.get("OLLAMA_URL", "http://localhost:11434/api/generate")
             self.openai_api_key = os.environ.get("OPENAI_API_KEY") or os.environ.get("DEEPSEEK_API_KEY")
-            self.ai_model = os.environ.get("OPENAI_MODEL") or os.environ.get("LLM_FALLBACK_MODEL") or "gpt-4o-mini"
+            self.ai_model = os.environ.get("OPENAI_MODEL") or os.environ.get("LLM_FALLBACK_MODEL") or "gemma4:e2b"
             self.openai_verify_ssl = os.environ.get("OPENAI_VERIFY_SSL", "true").lower() not in ["0", "false", "no"]
-            os.makedirs("sessions", exist_ok=True)
-            self.session_file = f"sessions/crawler_session_{self.profile_name}.json"
             self.max_retries = 3
             self.proxies = [None]
             self.credentials = {
@@ -173,6 +174,10 @@ class GoldCrawler:
             self.target_url = "https://giavang.doji.vn/"
             self.headers = DEFAULT_HEADERS.copy()
             self.max_retries = 2
+            self.credentials = {
+                "username": os.environ.get("DOJI_SITE_USER", "default_user"),
+                "password": os.environ.get("DOJI_SITE_PASS", "default_pass"),
+            }
         elif self.source == "pnj":
             self.headers = {
                 **DEFAULT_HEADERS,
@@ -181,6 +186,10 @@ class GoldCrawler:
                 "Referer": self.PAGE_URL_PNJ,
             }
             self.max_retries = 2
+            self.credentials = {
+                "username": os.environ.get("PNJ_SITE_USER", "default_user"),
+                "password": os.environ.get("PNJ_SITE_PASS", "default_pass"),
+            }
         else:
             raise ValueError(f"Unknown source: {self.source}")
 
@@ -289,54 +298,33 @@ Text:
 {clean_text}"""
 
         try:
-            if not self.openai_api_key:
-                print("[-] OPENAI_API_KEY is not configured")
-                return None
-
-            endpoint = self.openai_base_url.rstrip("/")
-            if not endpoint.endswith("/chat/completions"):
-                endpoint = f"{endpoint}/chat/completions"
-
             headers = {
-                "Authorization": f"Bearer {self.openai_api_key}",
                 "Content-Type": "application/json",
             }
+            if self.openai_api_key:
+                headers["Authorization"] = f"Bearer {self.openai_api_key}"
             payload = {
                 "model": self.ai_model,
-                "messages": [
-                    {
-                        "role": "system",
-                        "content": "Return valid JSON only. Do not include markdown fences.",
-                    },
-                    {"role": "user", "content": prompt},
-                ],
-                "temperature": 0,
-                "response_format": {"type": "json_object"},
+                "prompt": prompt,
+                "system": "Return valid JSON only. Do not include markdown fences.",
+                "format": "json",
+                "stream": False,
             }
             response = requests.post(
-                endpoint,
+                self.ollama_url,
                 headers=headers,
                 json=payload,
                 verify=self.openai_verify_ssl,
                 timeout=120,
             )
-            if response.status_code in [400, 422] and "response_format" in response.text:
-                payload.pop("response_format", None)
-                response = requests.post(
-                    endpoint,
-                    headers=headers,
-                    json=payload,
-                    verify=self.openai_verify_ssl,
-                    timeout=120,
-                )
             if response.status_code == 200:
-                content = response.json()["choices"][0]["message"]["content"]
+                content = response.json().get("response", "")
                 content = content.strip()
                 if content.startswith("```"):
                     content = re.sub(r"^```(?:json)?\s*", "", content)
                     content = re.sub(r"\s*```$", "", content)
                 return json.loads(content)
-            print(f"[-] LLM API error: {response.status_code} {response.text}")
+            print(f"[-] Ollama API error: {response.status_code} {response.text}")
             return None
         except Exception as e:
             print(f"[-] LLM API unavailable: {e}")
@@ -356,7 +344,7 @@ Text:
         
         for signal in signals:
             if signal in html_lower:
-                print(f"[*] Phát hiện từ khóa nghi ngờ chặn Bot: '{signal}'")
+                print(f"[*] Suspected blocking signal detected: '{signal}'")
                 return True
                 
         return False
@@ -370,15 +358,15 @@ Text:
     def _handle_login_sjc(self, page):
         try:
             if page.locator("input[type='password']").is_visible(timeout=2000):
-                print("[!] Yêu cầu đăng nhập. Đang tự động điền thông tin bảo mật...")
+                print("[!] Login requested. Filling security credentials...")
                 page.locator("input[type='text'], input[name='username'], input[type='email']").first.fill(
                     self.credentials["username"]
                 )
                 page.wait_for_timeout(random.randint(300, 800))
                 page.locator("input[type='password']").fill(self.credentials["password"])
                 page.keyboard.press("Enter")
-                print("[*] Đã ấn Đăng nhập, đang chờ trang phản hồi...")
-                page.wait_for_timeout(5000) # Đợi bắt buộc 5s để sang hẳn trang sau
+                print("[*] Clicked Login, waiting for response...")
+                page.wait_for_timeout(5000) # Wait 5s for page transition
                 try:
                     page.wait_for_load_state("domcontentloaded", timeout=5000)
                 except:
@@ -386,7 +374,7 @@ Text:
                 
                 # Check for MFA / OTP after login
                 if page.locator("input[name*='otp'], input[name*='code'], input[id*='otp'], text='MFA', text='OTP', input[placeholder*='OTP']").is_visible(timeout=3000):
-                    print("[-] Phát hiện yêu cầu xác thực 2 bước (MFA/OTP)! Hãy tự nhập trên trình duyệt...")
+                    print("[-] MFA/OTP verification required! Please complete in browser...")
         except Exception as e:
             pass
 
@@ -407,7 +395,7 @@ Text:
                     browser = p.chromium.connect_over_cdp(endpoint_url)
                     context = browser.contexts[0] if browser.contexts else browser.new_context()
                 except Exception:
-                    print("[*] Đang mở trình duyệt mới (có giao diện) để bạn quan sát bot gõ phím...")
+                    print("[*] Opening new headful browser for observation...")
                     browser = p.chromium.launch(headless=False, slow_mo=50)
                     launched_browser = True
                     context_args = {
@@ -430,7 +418,7 @@ Text:
                     html = page.content()
                 except Exception as e:
                     if "navigating" in str(e).lower():
-                        print("[*] Đang đợi trang tải hoàn tất...")
+                        print("[*] Waiting for page load completion...")
                         page.wait_for_load_state("networkidle", timeout=10000)
                         html = page.content()
                     else:
@@ -438,8 +426,8 @@ Text:
 
                 # Đợi con người giải quyết Captcha/MFA
                 while self._detect_blocking_signals_sjc(html):
-                    print("[-] BỊ CHẶN (MFA/Captcha)! Bot đang tạm dừng...")
-                    print("[*] Vui lòng thao tác trên cửa sổ trình duyệt (Nhập OTP/Giải Captcha). Bot sẽ tự động kiểm tra lại sau mỗi 5s...")
+                    print("[-] BLOCKED (MFA/Captcha)! Bot paused...")
+                    print("[*] Solve Captcha/MFA in browser window. Bot will retry in 5s...")
                     page.wait_for_timeout(5000)
                     try:
                         html = page.content()
@@ -456,6 +444,73 @@ Text:
             return None
         except Exception as e:
             print(f"[-] Playwright fallback failed: {e}")
+            return None
+
+    def _browser_fetch_doji(self):
+        print("[!] Starting Playwright fallback for DOJI...")
+        try:
+            from playwright.sync_api import sync_playwright
+
+            mcp_token = os.environ.get("PLAYWRIGHT_MCP_EXTENSION_TOKEN", "")
+
+            with sync_playwright() as p:
+                browser = None
+                context = None
+                launched_browser = False
+
+                try:
+                    endpoint_url = f"ws://localhost:9222?token={mcp_token}" if mcp_token else "ws://localhost:9222"
+                    browser = p.chromium.connect_over_cdp(endpoint_url)
+                    context = browser.contexts[0] if browser.contexts else browser.new_context()
+                except Exception:
+                    print("[*] Opening new headful browser for observation...")
+                    browser = p.chromium.launch(headless=False, slow_mo=50)
+                    launched_browser = True
+                    context_args = {
+                        "user_agent": self.headers["User-Agent"],
+                        "viewport": {"width": 1920, "height": 1080},
+                    }
+                    if os.path.exists(self.session_file):
+                        context_args["storage_state"] = self.session_file
+                    context = browser.new_context(**context_args)
+
+                page = context.new_page()
+                page.goto(self.target_url, wait_until="domcontentloaded", timeout=30000)
+                self._simulate_human_behavior_sjc(page)
+                try:
+                    page.wait_for_load_state("networkidle", timeout=5000)
+                except:
+                    pass
+                try:
+                    html = page.content()
+                except Exception as e:
+                    if "navigating" in str(e).lower():
+                        print("[*] Waiting for page load completion...")
+                        page.wait_for_load_state("networkidle", timeout=10000)
+                        html = page.content()
+                    else:
+                        raise e
+
+                # Đợi con người giải quyết Captcha/MFA
+                while self._detect_blocking_signals_doji(html):
+                    print("[-] BLOCKED (MFA/Captcha)! Bot paused...")
+                    print("[*] Solve Captcha/MFA in browser window. Bot will retry in 5s...")
+                    page.wait_for_timeout(5000)
+                    try:
+                        html = page.content()
+                    except:
+                        pass
+
+                context.storage_state(path=self.session_file)
+                page.close()
+                if launched_browser:
+                    browser.close()
+                return html
+        except ImportError:
+            print("[-] Playwright is not installed")
+            return None
+        except Exception as e:
+            print(f"[-] Playwright fallback failed for DOJI: {e}")
             return None
 
     def _execute_crawling_sjc(self):
@@ -492,7 +547,7 @@ Text:
             except Exception as e:
                 print(f"[-] WebGia SJC attempt {attempt}/{self.max_retries} failed: {e}")
                 if "HITL_REQUIRED" in str(e):
-                    print(f"[!!!] CẦN CON NGƯỜI DUYỆT (HITL). Dừng thử lại! Lỗi: {e}")
+                    print(f"[!!!] Human review (HITL) required. Stopping retries! Error: {e}")
                     return {"sjc": source_result("failed", [], str(e))}
                     
                 if attempt < self.max_retries:
@@ -615,14 +670,35 @@ Text:
             unique[key] = record
         return list(unique.values())
 
+    def _detect_blocking_signals_doji(self, html, status_code=200):
+        if status_code in [403, 429, 503]:
+            return True
+        if not html:
+            return True
+        html_lower = html.lower()
+        signals = [
+            "please verify you are a human", "checking your browser before accessing", "access denied", 
+            "please complete the captcha", "security check", 
+            "2-step verification", "enter the otp", "two-factor authentication", "device verification"
+        ]
+        for signal in signals:
+            if signal in html_lower:
+                return True
+        return False
+
     def _execute_crawling_doji(self):
         print(f"[*] Crawling DOJI: {self.target_url}")
 
         for attempt in range(1, self.max_retries + 1):
             try:
                 response = requests.get(self.target_url, headers=self.headers, timeout=15)
-                response.raise_for_status()
-                records = self._parse_doji(response.text)
+                
+                if response.status_code != 200 or self._detect_blocking_signals_doji(response.text, response.status_code):
+                    html = self._browser_fetch_doji()
+                else:
+                    html = response.text
+
+                records = self._parse_doji(html)
 
                 if not records:
                     raise Exception("Could not parse DOJI prices")
@@ -698,18 +774,45 @@ Text:
         try:
             from playwright.sync_api import sync_playwright
 
+            mcp_token = os.environ.get("PLAYWRIGHT_MCP_EXTENSION_TOKEN", "")
+
             with sync_playwright() as p:
-                browser = p.chromium.launch(headless=True)
-                page = browser.new_page(
-                    user_agent=DEFAULT_HEADERS["User-Agent"],
-                    viewport={"width": 1440, "height": 1000},
-                )
+                browser = None
+                context = None
+                launched_browser = False
+
+                try:
+                    endpoint_url = f"ws://localhost:9222?token={mcp_token}" if mcp_token else "ws://localhost:9222"
+                    browser = p.chromium.connect_over_cdp(endpoint_url)
+                    context = browser.contexts[0] if browser.contexts else browser.new_context()
+                except Exception:
+                    print("[*] Opening new headful browser for observation...")
+                    browser = p.chromium.launch(headless=False, slow_mo=50)
+                    launched_browser = True
+                    context_args = {
+                        "user_agent": self.headers["User-Agent"],
+                        "viewport": {"width": 1440, "height": 1000},
+                    }
+                    if os.path.exists(self.session_file):
+                        context_args["storage_state"] = self.session_file
+                    context = browser.new_context(**context_args)
+
+                page = context.new_page()
                 page.goto(self.PAGE_URL_PNJ, wait_until="networkidle", timeout=45000)
 
                 for zone, location in self.ZONES_PNJ.items():
-                    page.locator("select").first.select_option(zone)
+                    try:
+                        page.locator("#demo-simple-select-helper").click(timeout=5000)
+                        page.wait_for_selector('li[role="option"]', timeout=5000)
+                        page.locator(f'li[role="option"][data-value="{zone}"]').click(timeout=5000)
+                    except Exception as select_err:
+                        print(f"[-] Failed to select zone {zone} via MUI select: {select_err}")
+                        try:
+                            page.locator("select").first.select_option(zone, timeout=2000)
+                        except:
+                            continue
                     page.wait_for_timeout(1200)
-                    text = page.locator("body").inner_text(timeout=10000)
+                    text = page.locator("body").first.inner_text(timeout=10000)
                     lines = [line.strip() for line in text.splitlines() if line.strip()]
                     timestamp = int(datetime.now().timestamp())
 
@@ -732,9 +835,15 @@ Text:
                             "source": self.PAGE_URL_PNJ,
                         })
 
-                browser.close()
+                context.storage_state(path=self.session_file)
+                page.close()
+                if launched_browser:
+                    browser.close()
         except Exception as e:
-            print(f"[-] PNJ Playwright fallback failed: {e}")
+            try:
+                print(f"[-] PNJ Playwright fallback failed: {e}")
+            except UnicodeEncodeError:
+                print(f"[-] PNJ Playwright fallback failed: {repr(e)}")
 
         unique = {}
         for record in records:
@@ -782,7 +891,7 @@ class SjcWebGiaCrawler(GoldCrawler):
     """
     Backward-compatible SjcWebGiaCrawler.
     """
-    def __init__(self, use_ai_fallback: bool = True, profile_name: str = "default"):
+    def __init__(self, use_ai_fallback: bool = True, profile_name: str = "gold"):
         super().__init__(source="sjc", use_ai_fallback=use_ai_fallback, profile_name=profile_name)
 
     def _get_cookies_from_session(self):
@@ -814,8 +923,8 @@ class DojiCrawler(GoldCrawler):
     """
     Backward-compatible DojiCrawler.
     """
-    def __init__(self):
-        super().__init__(source="doji")
+    def __init__(self, profile_name: str = "doji"):
+        super().__init__(source="doji", profile_name=profile_name)
 
     # DOJI static constants mapping
     AREA_MAP = GoldCrawler.AREA_MAP_DOJI
@@ -844,8 +953,8 @@ class PnjCrawler(GoldCrawler):
     """
     Backward-compatible PnjCrawler.
     """
-    def __init__(self):
-        super().__init__(source="pnj")
+    def __init__(self, profile_name: str = "pnj"):
+        super().__init__(source="pnj", profile_name=profile_name)
 
     # PNJ static constants mapping
     PRIMARY_API = GoldCrawler.PRIMARY_API_PNJ
@@ -929,6 +1038,10 @@ class RealEstateCrawler:
         if not self.target_url:
             raise ValueError("Real-estate target URL is required for custom sources")
         self.headers = DEFAULT_HEADERS.copy()
+        
+        # Save session file in the sessions directory
+        os.makedirs("sessions", exist_ok=True)
+        self.session_file = f"sessions/crawler_session_{self.source}.json"
 
     def _page_url(self, page_number: int) -> str:
         if page_number <= 1:
@@ -946,12 +1059,40 @@ class RealEstateCrawler:
         try:
             from playwright.sync_api import sync_playwright
 
+            mcp_token = os.environ.get("PLAYWRIGHT_MCP_EXTENSION_TOKEN", "")
+
             with sync_playwright() as p:
-                browser = p.chromium.launch(headless=True)
-                page = browser.new_page(user_agent=self.headers["User-Agent"])
-                page.goto(url, wait_until="networkidle", timeout=45000)
+                browser = None
+                context = None
+                launched_browser = False
+
+                try:
+                    endpoint_url = f"ws://localhost:9222?token={mcp_token}" if mcp_token else "ws://localhost:9222"
+                    browser = p.chromium.connect_over_cdp(endpoint_url)
+                    context = browser.contexts[0] if browser.contexts else browser.new_context()
+                except Exception:
+                    print("[*] Opening new browser for real-estate crawl...")
+                    browser = p.chromium.launch(headless=True)
+                    launched_browser = True
+                    context_args = {
+                        "user_agent": self.headers["User-Agent"],
+                        "viewport": {"width": 1920, "height": 1080},
+                    }
+                    if os.path.exists(self.session_file):
+                        context_args["storage_state"] = self.session_file
+                    context = browser.new_context(**context_args)
+
+                page = context.new_page()
+                page.goto(url, wait_until="domcontentloaded", timeout=30000)
+                
+                # Wait 3 seconds for dynamic listings/scripts to load
+                page.wait_for_timeout(3000)
                 html = page.content()
-                browser.close()
+
+                context.storage_state(path=self.session_file)
+                page.close()
+                if launched_browser:
+                    browser.close()
                 return html
         except Exception as e:
             print(f"[-] Real-estate Playwright fallback failed: {e}")
@@ -1166,11 +1307,11 @@ class MultiSourceRealEstateCrawler:
 class MultiSourceGoldCrawler:
     """Run SJC/WebGia, DOJI, and PNJ crawlers in parallel."""
 
-    def __init__(self, use_ai_fallback: bool = True, profile_name: str = "default"):
+    def __init__(self, use_ai_fallback: bool = True, profile_name: Optional[str] = None):
         self.crawlers = {
-            "sjc": SjcWebGiaCrawler(use_ai_fallback=use_ai_fallback, profile_name=profile_name),
-            "doji": DojiCrawler(),
-            "pnj": PnjCrawler(),
+            "sjc": SjcWebGiaCrawler(use_ai_fallback=use_ai_fallback, profile_name="sjc"),
+            "doji": DojiCrawler(profile_name="doji"),
+            "pnj": PnjCrawler(profile_name="pnj"),
         }
 
     def execute_crawling(self) -> Dict[str, Dict]:
@@ -1205,4 +1346,7 @@ class HybridGoldCrawler(MultiSourceGoldCrawler):
 if __name__ == "__main__":
     crawler = MultiSourceGoldCrawler(use_ai_fallback=True)
     result = crawler.execute_crawling()
-    print(json.dumps(result, indent=2, ensure_ascii=False))
+    try:
+        print(json.dumps(result, indent=2, ensure_ascii=False))
+    except UnicodeEncodeError:
+        print(json.dumps(result, indent=2, ensure_ascii=True))
