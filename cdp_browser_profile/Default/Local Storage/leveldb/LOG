@@ -1,0 +1,6 @@
+2026/06/19-14:48:05.447 2bcc Reusing MANIFEST D:\a_finalcrawl\abc\cdp_browser_profile\Default\Local Storage\leveldb/MANIFEST-000001
+2026/06/19-14:48:05.457 2bcc Recovering log #20
+2026/06/19-14:48:05.460 2bcc Reusing old log D:\a_finalcrawl\abc\cdp_browser_profile\Default\Local Storage\leveldb/000020.log 
+2026/06/19-14:48:20.456 2bcc Level-0 table #23: started
+2026/06/19-14:48:20.464 2bcc Level-0 table #23: 29074 bytes OK
+2026/06/19-14:48:20.467 2bcc Delete type=0 #20

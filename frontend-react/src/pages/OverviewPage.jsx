@@ -14,6 +14,7 @@ import {
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { getCrawlJobs } from "../api/crawlJobApi";
 import { getHealth } from "../api/crawlerApi";
+import { getBlockingSignals } from "../api/blockingApi";
 import { getHousePrices } from "../api/extractedDataApi";
 import {
   getAvailableGoldDates,
@@ -176,6 +177,13 @@ function getHouseSourceStatuses(data) {
   };
 }
 
+function hasCloudflareChallenge(payload) {
+  return ["batdongsan", "alonhadat"].some((source) => {
+    const message = String(payload?.[source]?.error || payload?.[source]?.message || "").toLowerCase();
+    return message.includes("cloudflare") || message.includes("challenge");
+  });
+}
+
 function median(values) {
   const numbers = values.filter((value) => Number.isFinite(Number(value))).map(Number).sort((a, b) => a - b);
   if (!numbers.length) return null;
@@ -192,33 +200,45 @@ export default function OverviewPage() {
   const [selectedTopic, setSelectedTopic] = useState("gold-price");
 
   const fetchOverview = useCallback(async () => {
+    if (selectedTopic === "house-price") {
+      const housePricesResult = await settle("housePrices", getHousePrices({ max_pages: 1, use_browser_fallback: true }));
+      const results = await Promise.all([
+        settle("health", getHealth()),
+        housePricesResult,
+        settle("availableDates", Promise.resolve(null)),
+        settle("trends", Promise.resolve(null)),
+        settle("sourceMomentum", Promise.resolve(null)),
+        settle("hitlCases", getHitlCases()),
+        settle("blockingSignals", getBlockingSignals()),
+        settle("loginTests", getLoginTests()),
+        settle("crawlJobs", getCrawlJobs(false)),
+        settle("sessions", getSessions()),
+      ]);
+
+      return Object.fromEntries(results.map((result) => [result.name, result]));
+    }
+
     const topicRequests =
-      selectedTopic === "house-price"
-        ? [
-            settle("housePrices", getHousePrices({ max_pages: 1, use_browser_fallback: true })),
-            settle("availableDates", Promise.resolve(null)),
-            settle("trends", Promise.resolve(null)),
-            settle("sourceMomentum", Promise.resolve(null)),
-          ]
-        : [
-            settle("currentPrices", getCurrentGoldPrices()),
-            settle("availableDates", getAvailableGoldDates()),
-            settle(
-              "trends",
-              getGoldTrends({
-                company: "SJC",
-                period: "monthly",
-                gold_type: "SJC 1L",
-                location: "National",
-              })
-            ),
-            settle("sourceMomentum", getSourceMomentum("main")),
-          ];
+      [
+        settle("currentPrices", getCurrentGoldPrices()),
+        settle("availableDates", getAvailableGoldDates()),
+        settle(
+          "trends",
+          getGoldTrends({
+            company: "SJC",
+            period: "monthly",
+            gold_type: "SJC 1L",
+            location: "National",
+          })
+        ),
+        settle("sourceMomentum", getSourceMomentum("main")),
+      ];
 
     const results = await Promise.all([
       settle("health", getHealth()),
       ...topicRequests,
       settle("hitlCases", getHitlCases()),
+      settle("blockingSignals", getBlockingSignals()),
       settle("loginTests", getLoginTests()),
       settle("crawlJobs", getCrawlJobs(false)),
       settle("sessions", getSessions()),
@@ -229,7 +249,8 @@ export default function OverviewPage() {
 
   const { data, loading, refreshing, error, refresh } = useAutoRefresh(
     fetchOverview,
-    selectedTopic === "house-price" ? 60000 : 10000
+    selectedTopic === "house-price" ? 0 : 10000,
+    selectedTopic !== "house-price"
   );
   const health = data?.health?.status === "fulfilled" ? data.health.value : null;
   const currentPrices = data?.currentPrices?.status === "fulfilled" ? data.currentPrices.value : null;
@@ -239,6 +260,7 @@ export default function OverviewPage() {
   const sourceMomentum =
     data?.sourceMomentum?.status === "fulfilled" ? data.sourceMomentum.value : null;
   const hitlCases = data?.hitlCases?.status === "fulfilled" ? data.hitlCases.value : null;
+  const blockingSignals = data?.blockingSignals?.status === "fulfilled" ? data.blockingSignals.value : null;
   const loginTests = data?.loginTests?.status === "fulfilled" ? data.loginTests.value : null;
   const crawlJobs = data?.crawlJobs?.status === "fulfilled" ? data.crawlJobs.value : null;
   const sessions = data?.sessions?.status === "fulfilled" ? data.sessions.value : null;
@@ -254,6 +276,12 @@ export default function OverviewPage() {
     [currentPrices, housePrices, isHouseTopic]
   );
   const caseRows = Array.isArray(hitlCases?.cases) ? hitlCases.cases.slice(0, 4) : [];
+  const blockingRows = Array.isArray(blockingSignals?.signals) ? blockingSignals.signals : [];
+  const openBlockingRows = blockingRows.filter((signal) => signal.status === "open");
+  const houseCloudflareOpen = isHouseTopic && hasCloudflareChallenge(housePrices) && openBlockingRows.length === 0 ? 1 : 0;
+  const totalBlockingOpen = openBlockingRows.length + houseCloudflareOpen;
+  const totalReviewOpen = Number(hitlCases?.open_count || 0) + totalBlockingOpen;
+  const totalReviewCount = Number(hitlCases?.count || 0) + blockingRows.length + houseCloudflareOpen;
   const loginRows = Array.isArray(loginTests?.jobs) ? loginTests.jobs.slice(0, 4) : [];
   const crawlJobRows = Array.isArray(crawlJobs?.jobs) ? crawlJobs.jobs : [];
   const houseMedianPrice = useMemo(() => median(records.map((record) => record.price)), [records]);
@@ -270,7 +298,7 @@ export default function OverviewPage() {
   }));
 
   const anyEndpointSucceeded = Boolean(
-    health || currentPrices || housePrices || availableDates || trends || sourceMomentum || hitlCases || loginTests || crawlJobs || sessions
+    health || currentPrices || housePrices || availableDates || trends || sourceMomentum || hitlCases || blockingSignals || loginTests || crawlJobs || sessions
   );
   const lastCrawlTime = topicPayload?.timestamp ? formatDateTime(topicPayload.timestamp) : "Not connected";
   const serviceSummary = health?.services
@@ -278,7 +306,9 @@ export default function OverviewPage() {
     : "GET /api/health";
 
   useEffect(() => {
-    refresh();
+    if (selectedTopic !== "house-price") {
+      refresh();
+    }
   }, [refresh, selectedTopic]);
 
   return (
@@ -313,7 +343,7 @@ export default function OverviewPage() {
         <ErrorState error={error} onRetry={refresh} />
       ) : (
         <>
-          <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-6">
+          <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3 2xl:grid-cols-6">
             <CompactMetric
               label="Backend API"
               value={health?.status || "Not connected"}
@@ -346,10 +376,14 @@ export default function OverviewPage() {
             />
             <CompactMetric
               label="HITL Reviews"
-              value={hitlCases ? hitlCases.open_count ?? 0 : "Not connected"}
-              detail={hitlCases ? `${hitlCases.count ?? 0} total cases` : "GET /api/hitl/cases"}
+              value={hitlCases || blockingSignals || houseCloudflareOpen ? totalReviewOpen : "Not connected"}
+              detail={
+                hitlCases || blockingSignals || houseCloudflareOpen
+                  ? `${totalReviewCount} total cases, ${totalBlockingOpen} blocking`
+                  : "GET /api/hitl/cases + /api/blocking-signals"
+              }
               icon={RadioTower}
-              status={<StatusBadge status={hitlCases ? (hitlCases.open_count ? "open" : "resolved") : "not_connected"} />}
+              status={<StatusBadge status={hitlCases || blockingSignals || houseCloudflareOpen ? (totalReviewOpen ? "open" : "resolved") : "not_connected"} />}
             />
             <CompactMetric
               label="Rate Limit Usage"
@@ -445,10 +479,27 @@ export default function OverviewPage() {
 
           <section className="grid gap-5 xl:grid-cols-2">
             <Panel title="Blocking Signals">
-              <NotConnectedCard
-                title="Blocking signals endpoint is not connected yet."
-                message="TODO: Backend needed: GET /blocking-signals or GET /crawler/blocking-signals"
-              />
+              {blockingRows.length ? (
+                <DataTable
+                  columns={[
+                    { key: "reason", header: "Reason" },
+                    { key: "source", header: "Source" },
+                    { key: "severity", header: "Severity" },
+                    { key: "status", header: "Status", render: (row) => <StatusBadge status={row.status} /> },
+                    { key: "message", header: "Message" },
+                  ]}
+                  rows={blockingRows.slice(0, 5).map((signal, index) => ({
+                    id: signal.signal_id || `${signal.source || "signal"}-${index}`,
+                    ...signal,
+                  }))}
+                  maxHeight="280px"
+                />
+              ) : (
+                <NotConnectedCard
+                  title="No blocking signals detected."
+                  message="Cloudflare, captcha, access denied, timeout, and browser errors will appear here."
+                />
+              )}
             </Panel>
             <Panel title="Recent Notifications" action={<span className="text-xs text-cyan">0 total</span>}>
               <NotConnectedCard
@@ -538,10 +589,10 @@ export default function OverviewPage() {
             />
             <CompactMetric
               label="Blocking Signals"
-              value="Not connected"
-              detail="TODO: Backend needed: GET /blocking-signals"
+              value={blockingSignals ? openBlockingRows.length : "Not connected"}
+              detail={blockingSignals ? `${blockingRows.length} total detected` : "GET /api/blocking-signals"}
               icon={ShieldAlert}
-              status={<StatusBadge status="not_connected" />}
+              status={<StatusBadge status={blockingSignals ? (openBlockingRows.length ? "open" : "resolved") : "not_connected"} />}
             />
             <CompactMetric
               label="Notification Count"

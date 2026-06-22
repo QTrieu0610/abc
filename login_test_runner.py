@@ -15,14 +15,6 @@ TARGETS = {
         "label": "GitHub Login",
         "url": "https://github.com/login",
     },
-    "batdongsan": {
-        "label": "Batdongsan Login",
-        "url": "https://batdongsan.com.vn/nha-dat-ban",
-    },
-    "alonhadat": {
-        "label": "AloNhaDat Login",
-        "url": "https://alonhadat.com.vn/nha-dat/can-ban.html",
-    },
 }
 
 

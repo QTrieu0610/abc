@@ -155,9 +155,7 @@ export default function HitlReviewPage() {
                       const val = event.target.value;
                       setForm((current) => {
                         let profile = current.profile_name;
-                        if (val === "batdongsan") profile = "batdongsan";
-                        else if (val === "alonhadat") profile = "alonhadat";
-                        else if (val === "demo") profile = "default";
+                        if (val === "demo") profile = "default";
                         else if (val === "github") profile = "github";
                         return { ...current, target_type: val, profile_name: profile };
                       });
@@ -165,8 +163,6 @@ export default function HitlReviewPage() {
                   >
                     <option value="demo">Demo Login</option>
                     <option value="github">GitHub Login</option>
-                    <option value="batdongsan">Batdongsan Login</option>
-                    <option value="alonhadat">AloNhaDat Login</option>
                     <option value="custom">Custom URL</option>
                   </select>
                 </Field>

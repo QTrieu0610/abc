@@ -1,6 +1,7 @@
 import { Navigate, Route, Routes } from "react-router-dom";
 import AppLayout from "./components/layout/AppLayout";
 import TopicDashboardLayout from "./components/extracted-data/TopicDashboardLayout";
+import BlockingSignalsPage from "./pages/BlockingSignalsPage";
 import CrawlJobsPage from "./pages/CrawlJobsPage";
 import EndpointMissingPage from "./pages/EndpointMissingPage";
 import ExtractedDataPage from "./pages/ExtractedDataPage";
@@ -33,7 +34,7 @@ export default function App() {
         <Route path="commodity-price" element={<Navigate to="/extracted-data/commodity-price" replace />} />
         <Route path="crawl-jobs" element={<CrawlJobsPage />} />
         <Route path="sessions" element={<SessionsPage />} />
-        <Route path="blocking-signals" element={<EndpointMissingPage page="blocking-signals" />} />
+        <Route path="blocking-signals" element={<BlockingSignalsPage />} />
         <Route path="hitl" element={<HitlReviewPage />} />
         <Route path="notifications" element={<EndpointMissingPage page="notifications" />} />
         <Route path="audit-logs" element={<EndpointMissingPage page="audit-logs" />} />

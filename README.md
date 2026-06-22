@@ -1,348 +1,337 @@
-# Gold Price Dashboard - Vietnam SJC Gold Price Tracker
+# Adaptive Anti-Bot AI Crawler
 
-A modern, real-time gold price monitoring system for Vietnamese gold markets, featuring live price updates, historical data analysis, and beautiful data visualizations.
+Operations dashboard and API for authorized web crawling, session monitoring, HITL review, and Vietnam gold price collection.
 
-![Gold Price Dashboard](https://img.shields.io/badge/Status-Active-success)
-![Python](https://img.shields.io/badge/Python-3.8+-blue)
-![React](https://img.shields.io/badge/React-18.0+-61dafb)
-![FastAPI](https://img.shields.io/badge/FastAPI-Latest-009688)
+The project combines:
 
-## 🌟 Features
+- A FastAPI backend for crawler orchestration, gold price APIs, analytics, login tests, HITL cases, and WebSocket updates.
+- A React/Vite operations UI for overview metrics, crawl jobs, safe session metadata, extracted data, gold prices, and human review.
+- Multi-source gold crawlers for SJC/WebGia, DOJI, and PNJ, with CSV persistence for historical price analysis.
+- Playwright-based browser flows for authorized login checks and blocking signal detection.
 
-### Real-Time Price Monitoring
-- **Live gold prices** from SJC (Saigon Jewelry Company)
-- **WebSocket updates** for instant price changes
-- **Multiple gold types**: Bars (1L), Rings (1C), Jewelry (24K, 99%, 18K)
+## Project Structure
 
-### Historical Data Management
-- **Automatic data collection** with gap detection
-- **Historical price lookups** by date
-- **Smart data filling** - automatically fetches missing dates
-- **CSV storage** with 239+ unique dates of historical data
-
-### Advanced Analytics
-- **Price change analysis** over time
-- **Volatility tracking** and trends
-- **Price extremes** (min/max) detection
-- **Moving averages** for trend analysis
-
-### Modern UI/UX
-- **Responsive design** works on all devices
-- **Date picker** with automatic latest date detection
-- **Interactive charts** and visualizations
-- **Real-time updates** without page refresh
-
-## 🚀 Quick Start
-
-### Prerequisites
-
-- **Python 3.8+**
-- **Node.js 14+** and npm
-- **Git**
-
-### Installation
-
-#### 1. Clone the Repository
-```bash
-git clone https://github.com/yourusername/gold-price-dashboard.git
-cd gold-price-dashboard
+```text
+abc/
+|-- api_fastapi.py                  # FastAPI backend and API routes
+|-- ai_crawler_engine.py            # Multi-source crawler implementations
+|-- data_collector.py               # Historical/current gold data collection
+|-- data_analyzer.py                # Trend, volatility, momentum, and comparison analytics
+|-- fill_all_gaps.py                # Manual historical-data gap filler
+|-- login_test_runner.py            # Playwright login-test orchestration
+|-- mock_mfa_server.py              # Local mock target for MFA/captcha tests
+|-- test_hitl.py                    # Local HITL/blocking scenario smoke test
+|-- test_real_login.py              # Interactive login-test runner
+|-- config.py.example               # VNAppMob API key template
+|-- requirements.txt                # Python dependencies
+|-- historical_data/
+|   `-- historical_gold_prices.csv  # Local CSV data store
+|-- house_price_data/
+|   `-- house_price_listings.csv    # Local house-price listing store
+|-- sessions/
+|   `-- crawler_session_*.json      # Playwright storage-state files
+`-- frontend-react/
+    |-- package.json                # React/Vite scripts
+    |-- src/pages/                  # Dashboard pages
+    |-- src/api/                    # API clients
+    `-- src/components/             # Shared UI components
 ```
 
-#### 2. Backend Setup
+## Requirements
 
-```bash
-# Install Python dependencies
+- Python 3.8+
+- Node.js 18+ and npm
+- Playwright browsers for browser-based login tests
+- Optional: VNAppMob gold API key for historical API backfill
+- Optional: local Ollama endpoint for the SJC AI parsing fallback
+
+## Backend Setup
+
+From the `abc` directory:
+
+```powershell
+python -m venv ..\venv
+..\venv\Scripts\Activate.ps1
 pip install -r requirements.txt
-
-# Create config file from example
-cp config.py.example config.py
-
-# Edit config.py and add your API key
-# Get API key from: https://vapi.vnappmob.com/api/request_api_key?scope=gold
+python -m playwright install chromium
+Copy-Item config.py.example config.py
 ```
 
-#### 3. Frontend Setup
-
-```bash
-   cd frontend-react
-   npm install
-```
-
-### Running the Application
-
-#### Start Backend (Terminal 1)
-```bash
-# From project root
-uvicorn api_fastapi:app --reload
-```
-
-Backend will run at: http://localhost:8000
-
-#### Start Frontend (Terminal 2)
-```bash
-# From project root
-cd frontend-react
-npm start
-```
-
-Frontend will run at: http://localhost:3000
-
-## 📊 API Endpoints
-
-### Current Prices
-```
-GET /api/current-prices
-```
-Get the latest live gold prices.
-
-### Historical Data
-```
-GET /api/historical-prices?company=sjc&days=7
-```
-Get historical prices for the last N days.
-
-### Update Data
-```
-POST /api/update-historical-data
-```
-Manually trigger data update and gap filling.
-
-### Available Dates
-```
-GET /api/available-dates
-```
-Get list of all dates with available data.
-
-### Price by Date
-```
-GET /api/prices-by-date?date=2025-11-06
-```
-Get prices for a specific date.
-
-### WebSocket
-```
-WS /ws/prices
-```
-Real-time price updates via WebSocket.
-
-Full API documentation: http://localhost:8000/api/docs
-
-## 🏗️ Project Structure
-
-```
-gold-price-dashboard/
-├── api_fastapi.py              # FastAPI backend server
-├── data_collector.py           # Historical data collection
-├── data_analyzer.py            # Price analysis and analytics
-├── config.py                   # API key configuration (not in repo)
-├── config.py.example           # Config template
-├── requirements.txt            # Python dependencies
-│
-├── frontend-react/             # React frontend
-│   ├── src/
-│   │   ├── components/
-│   │   │   ├── PriceCards.js  # Main price display
-│   │   │   ├── Charts.js      # Price charts
-│   │   │   └── Analytics.js   # Analytics dashboard
-│   │   ├── App.js
-│   │   └── App.css
-│   └── package.json
-│
-├── historical_data/            # Data storage
-│   └── historical_gold_prices.csv
-│
-├── fill_all_gaps.py           # Manual gap-filling utility
-├── test_recovery.py           # Data recovery testing
-└── README.md
-```
-
-## 🔧 Configuration
-
-### API Key Setup
-
-1. Get your API key: https://vapi.vnappmob.com/api/request_api_key?scope=gold
-2. Copy `config.py.example` to `config.py`
-3. Add your API key to `config.py`:
+Edit `config.py` and set:
 
 ```python
-API_KEY = "your_actual_api_key_here"
+API_KEY = "your_api_key_here"
 ```
 
-**⚠️ Important**: 
-- API keys expire after 15 days
-- Never commit `config.py` to version control
-- Get a new key when expired
+You can request a VNAppMob key from:
 
-## 🛠️ Key Features Explained
+```text
+https://vapi.vnappmob.com/api/request_api_key?scope=gold
+```
 
-### Automatic Gap Filling
+The crawler can still read supported public sources without this key, but historical API backfill depends on it.
 
-The system automatically detects and fills missing dates in historical data:
+## Frontend Setup
 
-- **On startup**: Backend checks for missing data
-- **Fetches 30+ days**: Ensures no gaps are missed
-- **Smart merging**: Avoids duplicates
-- **Status logging**: Shows what was added
+From `abc/frontend-react`:
 
-```bash
-# Manual gap filling
+```powershell
+npm install
+```
+
+The frontend defaults to `http://localhost:8000` for backend calls. To use a different backend URL, create a frontend `.env` file:
+
+```text
+VITE_API_BASE_URL=http://localhost:8001
+```
+
+## Run Locally
+
+Start the backend from `abc`:
+
+```powershell
+..\venv\Scripts\Activate.ps1
+uvicorn api_fastapi:app --reload --host 0.0.0.0 --port 8000
+```
+
+Backend URLs:
+
+- API root: `http://localhost:8000`
+- Swagger docs: `http://localhost:8000/api/docs`
+- ReDoc: `http://localhost:8000/api/redoc`
+
+Start the frontend from `abc/frontend-react`:
+
+```powershell
+npm run dev
+```
+
+Frontend URL:
+
+```text
+http://localhost:3000
+```
+
+## Main UI Areas
+
+- `Overview`: crawler health, source status, latest prices, trends, sessions, jobs, and HITL summary.
+- `Crawl Jobs`: source jobs derived from the latest backend payload.
+- `Sessions & Identities`: safe metadata for stored Playwright sessions. Cookie values and credentials are not exposed.
+- `HITL Review`: starts authorized login tests, shows logs, and surfaces MFA/captcha/access-denied signals.
+- `Extracted Data`: topic-oriented extracted-data dashboard routes.
+- `Settings`: local app settings surface.
+
+## API Endpoints
+
+Core:
+
+- `GET /api/health`
+- `GET /api/current-prices`
+- `GET /api/crawl-jobs`
+- `GET /api/sessions`
+- `WS /ws/prices`
+
+Login tests and HITL:
+
+- `POST /api/login-tests`
+- `GET /api/login-tests`
+- `GET /api/login-tests/{job_id}`
+- `GET /api/login-tests/{job_id}/logs`
+- `GET /api/hitl/cases`
+
+Gold data:
+
+- `POST /api/update-historical-data`
+- `POST /api/data/update`
+- `GET /api/available-dates`
+- `GET /api/prices-by-date?date=YYYY-MM-DD`
+- `GET /api/historical-prices?company=SJC&days=30`
+- `GET /api/export/csv`
+- `GET /api/export/house-prices-csv`
+
+Analytics:
+
+- `GET /api/analytics/price-change`
+- `GET /api/analytics/volatility`
+- `GET /api/analytics/extremes`
+- `GET /api/analytics/trends`
+- `GET /api/analytics/comparison`
+- `GET /api/analytics/source-momentum`
+
+## Crawler Sources
+
+The backend currently supports:
+
+- SJC/WebGia: `https://webgia.com/gia-vang/sjc/`
+- DOJI: `https://giavang.doji.vn/`
+- PNJ: `https://www.pnj.com.vn/site/gia-vang`
+
+Crawler output is normalized into buy/sell records and used by the dashboard, API responses, CSV persistence, source status tables, and analytics.
+
+## Historical Data
+
+Historical prices are stored in:
+
+```text
+historical_data/historical_gold_prices.csv
+```
+
+House-price listings are stored in:
+
+```text
+house_price_data/house_price_listings.csv
+```
+
+Update methods:
+
+```powershell
 python fill_all_gaps.py
 ```
 
-### Date Picker Intelligence
+or:
 
-The frontend automatically shows the latest available date:
-
-- **On page load**: Fetches available dates from API
-- **Sets to latest**: Shows most recent data, not today
-- **Smart fallback**: Uses today if API fails
-- **Max date constraint**: Can't select future dates
-
-### WebSocket Real-Time Updates
-
-- **60-second polling**: Checks for price changes
-- **Instant broadcast**: Pushes to all connected clients
-- **Auto-save**: Updates CSV automatically
-- **Connection management**: Handles disconnections gracefully
-
-## 📈 Data Management
-
-### Historical Data
-
-Located in: `historical_data/historical_gold_prices.csv`
-
-**Current Stats**:
-- 1,159 total records
-- 239 unique dates
-- Date range: Dec 2024 - Nov 2025
-- 5 gold types per date
-
-### Data Update Methods
-
-**1. Automatic (Recommended)**
-- Backend updates on startup
-- Background task runs every 60 seconds
-
-**2. API Endpoint**
-```bash
-curl -X POST http://localhost:8000/api/update-historical-data
+```powershell
+Invoke-RestMethod -Method Post http://localhost:8000/api/update-historical-data
 ```
 
-**3. Manual Script**
-```bash
-python fill_all_gaps.py
+The backend also checks and updates data during startup/background runs when the collector is available.
+
+## Login Tests and HITL
+
+Login tests are for authorized crawling only. Credentials are accepted by the backend for the current job, redacted from logs, and not displayed in the UI.
+
+Targets supported by `login_test_runner.py`:
+
+- `demo`: `https://practicetestautomation.com/practice-test-login/`
+- `github`: `https://github.com/login`
+- `custom`: any `http://` or `https://` login URL supplied by the caller
+
+Run the interactive login test:
+
+```powershell
+python test_real_login.py
 ```
 
-**4. Python Code**
-```python
-from data_collector import HistoricalDataCollector
+Run local MFA/captcha smoke tests:
 
-collector = HistoricalDataCollector()
-result = collector.fetch_missing_data()
-print(result)
+```powershell
+python mock_mfa_server.py
 ```
 
-## 🧪 Testing
+In another terminal:
 
-### Test Data Recovery
-```bash
-python test_recovery.py
+```powershell
+python test_hitl.py
 ```
 
-Removes recent data and verifies automatic recovery.
+Detected signals such as MFA, OTP, captcha, Cloudflare, access denied, and timeouts are surfaced as HITL cases for review.
 
-### Run Frontend Tests
-```bash
+Refresh a real-estate crawler session after Cloudflare/captcha:
+
+```powershell
+python refresh_real_estate_session.py batdongsan
+python refresh_real_estate_session.py alonhadat
+```
+
+Complete the challenge in the browser window, then press Enter in the terminal to save the refreshed session file.
+
+Use Cloak Browser for real-estate sessions by exposing its Chrome DevTools/CDP endpoint, then running:
+
+```powershell
+$env:CLOAKBROWSER_CDP_URL="http://127.0.0.1:9222"
+python refresh_real_estate_session.py batdongsan
+```
+
+Or pass the endpoint directly:
+
+```powershell
+python refresh_real_estate_session.py batdongsan --cdp-url "http://127.0.0.1:9222"
+```
+
+The crawler will reuse the same `CLOAKBROWSER_CDP_URL` when fetching house-price pages.
+
+House-price crawling runs headless by default. To debug with a visible browser:
+
+```powershell
+$env:REAL_ESTATE_HEADLESS="false"
+```
+
+## Environment Variables
+
+Optional environment variables used by the crawler:
+
+```text
+GOLD_SITE_USER=...
+GOLD_SITE_PASS=...
+```
+
+These are used as fallback credentials by crawler browser flows. Prefer the HITL/login-test UI for one-off login checks.
+
+## Common Commands
+
+Install backend dependencies:
+
+```powershell
+pip install -r requirements.txt
+python -m playwright install chromium
+```
+
+Run backend:
+
+```powershell
+uvicorn api_fastapi:app --reload --port 8000
+```
+
+Run frontend:
+
+```powershell
 cd frontend-react
-npm test
+npm run dev
 ```
 
-## 🎨 UI Features
+Build frontend:
 
-### Price Display
-- **Hero card** with main gold bar (SJC 1L) prices
-- **Detailed breakdown** of all gold types
-- **Buy/Sell spread** calculation
-- **Historical vs Live** mode indicator
-
-### Date Selection
-- **Calendar picker** for any available date
-- **Quick "Current Prices"** button
-- **Visual indicators** for historical mode
-- **Loading states** during data fetch
-
-### Charts & Analytics
-- **Line charts** for price trends
-- **Moving averages** overlay
-- **Volatility indicators**
-- **Price extremes** highlighting
-
-## 🐛 Troubleshooting
-
-### Backend won't start
-```bash
-# Check if port 8000 is available
-netstat -ano | findstr :8000
-
-# Try different port
-uvicorn api_fastapi:app --port 8001
+```powershell
+cd frontend-react
+npm run build
 ```
 
-### Frontend can't connect to backend
-- Ensure backend is running on port 8000
-- Check `package.json` proxy setting
-- Verify CORS is enabled in `api_fastapi.py`
+Export CSV:
 
-### No data showing
-```bash
-# Run gap filler
-python fill_all_gaps.py
-
-# Check CSV exists
-ls historical_data/historical_gold_prices.csv
-
-# Verify API key is valid
-# Check config.py has correct API_KEY
+```powershell
+Invoke-WebRequest http://localhost:8000/api/export/csv -OutFile historical_gold_prices.csv
 ```
 
-### API Key Expired
-1. Get new key: https://vapi.vnappmob.com/api/request_api_key?scope=gold
-2. Update `config.py` with new key
-3. Restart backend
+## Troubleshooting
 
-## 📝 Recent Updates
+Backend cannot start:
 
-### November 7, 2025
-- ✅ **Fixed date picker** to show latest available date
-- ✅ **Enhanced gap detection** (fetches 30+ days)
-- ✅ **Added auto-update** on backend startup
-- ✅ **Improved data recovery** testing
+- Confirm dependencies are installed in the active virtual environment.
+- Confirm port 8000 is free, or run `uvicorn api_fastapi:app --reload --port 8001`.
+- Confirm `config.py` exists if using the VNAppMob historical API.
 
-## 🤝 Contributing
+Frontend cannot reach backend:
 
-Contributions are welcome! Please feel free to submit a Pull Request.
+- Start FastAPI first.
+- Confirm the backend URL in `frontend-react/src/api/client.ts` or `VITE_API_BASE_URL`.
+- Check browser console/network errors for failed `http://localhost:8000` requests.
 
-1. Fork the repository
-2. Create your feature branch (`git checkout -b feature/AmazingFeature`)
-3. Commit your changes (`git commit -m 'Add some AmazingFeature'`)
-4. Push to the branch (`git push origin feature/AmazingFeature`)
-5. Open a Pull Request
+Playwright login tests fail:
 
-## 📄 License
+- Run `python -m playwright install chromium`.
+- Confirm the target URL is authorized and reachable.
+- Check HITL logs for captcha, MFA, access denied, or timeout signals.
 
-This project is licensed under the MIT License.
+No gold data appears:
 
-## 🙏 Acknowledgments
+- Call `GET /api/current-prices` directly in the browser.
+- Run `python fill_all_gaps.py`.
+- Check `historical_data/historical_gold_prices.csv`.
+- Refresh or replace the VNAppMob API key if historical backfill fails.
 
-- **Data Source**: [VNAppMob Gold Price API](https://vapi.vnappmob.com)
-- **Gold Provider**: SJC (Saigon Jewelry Company)
-- **Frontend**: React + Bootstrap
-- **Backend**: FastAPI + Python
+## Safety Notes
 
-## 📧 Contact
-
-For questions or support, please open an issue on GitHub.
-
----
-
-**Made with ❤️ for tracking Vietnamese gold prices**
+- Only crawl sites you are authorized to access.
+- Do not commit `config.py`, credentials, session files with sensitive cookies, or captured login output.
+- The `/api/sessions` endpoint intentionally returns safe metadata only.
+- Treat MFA/captcha/access-denied signals as human-review stops, not automatic bypass steps.

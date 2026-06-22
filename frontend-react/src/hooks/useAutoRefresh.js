@@ -28,7 +28,10 @@ export function useAutoRefresh(fetcher, intervalMs, enabled = true) {
   }, []);
 
   useEffect(() => {
-    if (!enabled) return undefined;
+    if (!enabled) {
+      setLoading(false);
+      return undefined;
+    }
     let cancelled = false;
 
     const run = async (silent = false) => {
@@ -37,15 +40,15 @@ export function useAutoRefresh(fetcher, intervalMs, enabled = true) {
     };
 
     run(false);
-    const id = window.setInterval(() => run(true), intervalMs);
+    const id = intervalMs > 0 ? window.setInterval(() => run(true), intervalMs) : null;
     const handleVisibility = () => {
-      if (!document.hidden) run(true);
+      if (intervalMs > 0 && !document.hidden) run(true);
     };
 
     document.addEventListener("visibilitychange", handleVisibility);
     return () => {
       cancelled = true;
-      window.clearInterval(id);
+      if (id) window.clearInterval(id);
       document.removeEventListener("visibilitychange", handleVisibility);
     };
   }, [enabled, intervalMs, refresh]);

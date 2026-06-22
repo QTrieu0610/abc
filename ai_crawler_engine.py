@@ -2,6 +2,7 @@ import json
 import os
 import random
 import re
+import subprocess
 import time
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from datetime import datetime
@@ -1038,10 +1039,231 @@ class RealEstateCrawler:
         if not self.target_url:
             raise ValueError("Real-estate target URL is required for custom sources")
         self.headers = DEFAULT_HEADERS.copy()
+        self.last_browser_error = None
+        self.auto_started_cdp_browser = False
+        self.auto_started_cdp_process = None
         
         # Save session file in the sessions directory
         os.makedirs("sessions", exist_ok=True)
         self.session_file = f"sessions/crawler_session_{self.source}.json"
+
+    def _should_use_browser_first(self) -> bool:
+        return self.source == "batdongsan" and self.use_browser_fallback
+
+    def _browser_context_args(self) -> Dict:
+        context_args = {
+            "user_agent": self.headers["User-Agent"],
+            "viewport": {"width": 1920, "height": 1080},
+            "locale": "vi-VN",
+            "timezone_id": "Asia/Ho_Chi_Minh",
+        }
+        if os.path.exists(self.session_file):
+            print(f"[*] Loading real-estate session: {self.session_file}")
+            context_args["storage_state"] = self.session_file
+        else:
+            print(f"[*] No stored session found for {self.source_label}; starting clean context")
+        return context_args
+
+    def _cdp_endpoint_url(self) -> Optional[str]:
+        for env_name in [
+            "CLOAKBROWSER_CDP_URL",
+            "CLOAK_BROWSER_CDP_URL",
+            "REAL_ESTATE_CDP_URL",
+            "PLAYWRIGHT_CDP_URL",
+        ]:
+            value = os.environ.get(env_name)
+            if value:
+                print(f"[*] Using CDP endpoint from {env_name}: {value}")
+                return value
+
+        mcp_token = os.environ.get("PLAYWRIGHT_MCP_EXTENSION_TOKEN", "")
+        if mcp_token:
+            return f"ws://localhost:9222?token={mcp_token}"
+
+        return os.environ.get("CLOAKBROWSER_DEFAULT_CDP_URL", "http://127.0.0.1:9222")
+
+    def _is_cloakbrowser_cdp(self, endpoint_url: Optional[str] = None) -> bool:
+        if os.environ.get("CLOAKBROWSER_CDP_URL") or os.environ.get("CLOAK_BROWSER_CDP_URL"):
+            return True
+        endpoint = (endpoint_url or "").lower()
+        return "127.0.0.1:9222" in endpoint or "localhost:9222" in endpoint or "cloak" in endpoint
+
+    def _cdp_version_url(self, endpoint_url: Optional[str]) -> Optional[str]:
+        if not endpoint_url:
+            return None
+        endpoint = endpoint_url.strip()
+        if endpoint.startswith("ws://"):
+            endpoint = "http://" + endpoint[len("ws://"):]
+        elif endpoint.startswith("wss://"):
+            endpoint = "https://" + endpoint[len("wss://"):]
+        if not endpoint.startswith(("http://", "https://")):
+            return None
+        base = endpoint.split("?", 1)[0]
+        if "/devtools/" in base:
+            base = base.split("/devtools/", 1)[0]
+        return base.rstrip("/") + "/json/version"
+
+    def _check_cdp_endpoint(self, endpoint_url: Optional[str]) -> Optional[str]:
+        version_url = self._cdp_version_url(endpoint_url)
+        if not version_url:
+            return None
+        try:
+            response = requests.get(version_url, timeout=3)
+            response.raise_for_status()
+            payload = response.json()
+            if payload.get("webSocketDebuggerUrl") or payload.get("Browser"):
+                return None
+            return f"CDP endpoint responded but did not expose a browser debugger at {version_url}"
+        except Exception as e:
+            return (
+                f"Cloak Browser CDP is not reachable at {endpoint_url}. "
+                f"Open Cloak Browser with remote debugging port 9222, then verify {version_url}. "
+                f"Details: {e}"
+            )
+
+    def _local_cdp_browser_exe(self) -> Optional[str]:
+        configured = os.environ.get("CLOAKBROWSER_EXE") or os.environ.get("REAL_ESTATE_BROWSER_EXE")
+        candidates = [
+            configured,
+            r"C:\Program Files\Google\Chrome\Application\chrome.exe",
+            r"C:\Program Files (x86)\Google\Chrome\Application\chrome.exe",
+            os.path.join(os.environ.get("LOCALAPPDATA", ""), r"Google\Chrome\Application\chrome.exe"),
+        ]
+        for candidate in candidates:
+            if candidate and os.path.exists(candidate):
+                return candidate
+        return None
+
+    def _local_cdp_profile_dir(self) -> str:
+        return os.environ.get(
+            "REAL_ESTATE_CDP_PROFILE_DIR",
+            os.path.join(os.path.dirname(__file__), "cdp_browser_profile"),
+        )
+
+    def _start_local_cdp_browser(self, endpoint_url: Optional[str], start_url: str) -> bool:
+        self.auto_started_cdp_browser = False
+        self.auto_started_cdp_process = None
+        endpoint = (endpoint_url or "").lower()
+        if "127.0.0.1:9222" not in endpoint and "localhost:9222" not in endpoint:
+            return False
+
+        browser_exe = self._local_cdp_browser_exe()
+        if not browser_exe:
+            self.last_browser_error = (
+                "Cannot auto-start CDP browser because Chrome/Cloak executable was not found. "
+                "Set CLOAKBROWSER_EXE or REAL_ESTATE_BROWSER_EXE to the browser path."
+            )
+            print(f"[-] {self.last_browser_error}")
+            return False
+
+        profile_dir = self._local_cdp_profile_dir()
+        os.makedirs(profile_dir, exist_ok=True)
+        args = [
+            browser_exe,
+            "--remote-debugging-port=9222",
+            f"--user-data-dir={profile_dir}",
+            "--no-first-run",
+            "--new-window",
+            start_url,
+        ]
+        try:
+            print(f"[*] Starting local CDP browser on 127.0.0.1:9222: {browser_exe}")
+            creationflags = 0
+            if os.name == "nt":
+                creationflags = getattr(subprocess, "DETACHED_PROCESS", 0) | getattr(subprocess, "CREATE_NEW_PROCESS_GROUP", 0)
+            self.auto_started_cdp_process = subprocess.Popen(
+                args,
+                stdout=subprocess.DEVNULL,
+                stderr=subprocess.DEVNULL,
+                creationflags=creationflags,
+            )
+            for _ in range(10):
+                time.sleep(1)
+                if not self._check_cdp_endpoint(endpoint_url):
+                    self.auto_started_cdp_browser = True
+                    print("[+] Local CDP browser is ready at http://127.0.0.1:9222")
+                    return True
+        except Exception as e:
+            self.last_browser_error = f"Could not auto-start local CDP browser: {e}"
+            print(f"[-] {self.last_browser_error}")
+            return False
+
+        self.last_browser_error = "Local CDP browser was started but 127.0.0.1:9222 did not become ready."
+        print(f"[-] {self.last_browser_error}")
+        return False
+
+    def _stop_auto_started_cdp_browser(self, browser=None) -> None:
+        print("[*] Closing auto-started CDP browser after crawl")
+        try:
+            if browser:
+                browser.close()
+        except Exception:
+            pass
+
+        process = self.auto_started_cdp_process
+        if process and process.poll() is None:
+            try:
+                process.terminate()
+                process.wait(timeout=5)
+            except Exception:
+                try:
+                    process.kill()
+                except Exception:
+                    pass
+
+        self.auto_started_cdp_process = None
+        self.auto_started_cdp_browser = False
+
+    def _ensure_cdp_endpoint(self, endpoint_url: Optional[str], start_url: str) -> Optional[str]:
+        cdp_error = self._check_cdp_endpoint(endpoint_url)
+        if not cdp_error:
+            return None
+        print(f"[-] {cdp_error}")
+        if self._start_local_cdp_browser(endpoint_url, start_url):
+            return self._check_cdp_endpoint(endpoint_url)
+        return self.last_browser_error or cdp_error
+
+    def _challenge_wait_seconds(self) -> int:
+        try:
+            return max(0, int(os.environ.get("CLOAKBROWSER_CHALLENGE_WAIT_SECONDS", "120")))
+        except ValueError:
+            return 120
+
+    def _wait_for_challenge_clearance(self, page, endpoint_url: Optional[str]) -> str:
+        html = page.content()
+        blocking_reason = self._blocking_reason(html)
+        if not blocking_reason or not self._is_cloakbrowser_cdp(endpoint_url):
+            return html
+
+        wait_seconds = self._challenge_wait_seconds()
+        if wait_seconds <= 0:
+            return html
+
+        print(
+            f"[!] {self.source_label} is blocked by {blocking_reason}. "
+            f"Waiting up to {wait_seconds}s for Cloak Browser/manual challenge clearance..."
+        )
+        deadline = time.time() + wait_seconds
+        while time.time() < deadline:
+            page.wait_for_timeout(3000)
+            html = page.content()
+            if not self._detect_blocking_signals(html):
+                print(f"[+] {self.source_label} challenge cleared; continuing crawl")
+                return html
+
+        return html
+
+    def _pick_existing_page(self, context, target_url: str):
+        target_host = re.match(r"^https?://([^/]+)", target_url)
+        target_host = target_host.group(1).lower() if target_host else ""
+        for page in context.pages:
+            try:
+                if target_host and target_host in (page.url or "").lower():
+                    print(f"[*] Reusing existing Cloak Browser tab: {page.url}")
+                    return page
+            except Exception:
+                continue
+        return None
 
     def _page_url(self, page_number: int) -> str:
         if page_number <= 1:
@@ -1056,10 +1278,9 @@ class RealEstateCrawler:
 
     def _browser_fetch_page(self, url: str) -> Optional[str]:
         print(f"[!] Starting Playwright fallback for real-estate page: {url}")
+        self.last_browser_error = None
         try:
             from playwright.sync_api import sync_playwright
-
-            mcp_token = os.environ.get("PLAYWRIGHT_MCP_EXTENSION_TOKEN", "")
 
             with sync_playwright() as p:
                 browser = None
@@ -1067,48 +1288,119 @@ class RealEstateCrawler:
                 launched_browser = False
 
                 try:
-                    endpoint_url = f"ws://localhost:9222?token={mcp_token}" if mcp_token else "ws://localhost:9222"
+                    endpoint_url = self._cdp_endpoint_url()
+                    if not endpoint_url:
+                        raise RuntimeError("No CDP endpoint configured")
+                    cdp_error = self._ensure_cdp_endpoint(endpoint_url, url)
+                    if cdp_error and self._is_cloakbrowser_cdp(endpoint_url):
+                        self.last_browser_error = cdp_error
+                        return None
                     browser = p.chromium.connect_over_cdp(endpoint_url)
-                    context = browser.contexts[0] if browser.contexts else browser.new_context()
-                except Exception:
+                    if self._is_cloakbrowser_cdp(endpoint_url) and browser.contexts:
+                        print("[*] Using Cloak Browser existing profile context")
+                        context = browser.contexts[0]
+                    else:
+                        context = browser.new_context(**self._browser_context_args())
+                except Exception as e:
+                    print(f"[-] Could not connect to Cloak/CDP browser: {e}")
+                    if self.source == "batdongsan":
+                        self.last_browser_error = (
+                            "Batdongsan requires Cloak Browser CDP for Cloudflare. "
+                            "Start Cloak with --remote-debugging-port=9222 or set CLOAKBROWSER_CDP_URL."
+                        )
+                        print(f"[-] {self.last_browser_error}")
+                        return None
                     print("[*] Opening new browser for real-estate crawl...")
-                    browser = p.chromium.launch(headless=True)
+                    headless = os.environ.get("REAL_ESTATE_HEADLESS", "true").lower() not in ["0", "false", "no"]
+                    browser = p.chromium.launch(headless=headless, slow_mo=50)
                     launched_browser = True
-                    context_args = {
-                        "user_agent": self.headers["User-Agent"],
-                        "viewport": {"width": 1920, "height": 1080},
-                    }
-                    if os.path.exists(self.session_file):
-                        context_args["storage_state"] = self.session_file
-                    context = browser.new_context(**context_args)
+                    context = browser.new_context(**self._browser_context_args())
 
-                page = context.new_page()
-                page.goto(url, wait_until="domcontentloaded", timeout=30000)
-                
-                # Wait 3 seconds for dynamic listings/scripts to load
-                page.wait_for_timeout(3000)
+                using_cloak_cdp = self._is_cloakbrowser_cdp(endpoint_url if 'endpoint_url' in locals() else None)
+                page = self._pick_existing_page(context, url) if using_cloak_cdp else None
+                if page:
+                    page.bring_to_front()
+                    current_url = (page.url or "").lower()
+                    target_url = url.lower()
+                    if target_url not in current_url:
+                        page.goto(url, wait_until="domcontentloaded", timeout=30000)
+                    else:
+                        print("[*] Existing Cloak tab is already on target URL; reading current page state")
+                else:
+                    page = context.new_page()
+                    page.goto(url, wait_until="domcontentloaded", timeout=30000)
+
+                # Give client-side listings and automatic security checks time to settle.
+                for _ in range(5):
+                    page.wait_for_timeout(3000)
+                    current_html = page.content()
+                    if not self._detect_blocking_signals(current_html):
+                        break
                 html = page.content()
+                html = self._wait_for_challenge_clearance(page, endpoint_url if 'endpoint_url' in locals() else None)
 
-                context.storage_state(path=self.session_file)
-                page.close()
-                if launched_browser:
+                blocking_reason = self._blocking_reason(html)
+                if blocking_reason:
+                    print(f"[-] Not saving blocked session for {self.source_label}: {blocking_reason}")
+                else:
+                    context.storage_state(path=self.session_file)
+                    print(f"[+] Saved real-estate session: {self.session_file}")
+                if self.auto_started_cdp_browser:
+                    self._stop_auto_started_cdp_browser(browser)
+                elif not self._is_cloakbrowser_cdp(endpoint_url if 'endpoint_url' in locals() else None):
+                    page.close()
+                    context.close()
+                if launched_browser and browser:
                     browser.close()
                 return html
         except Exception as e:
             print(f"[-] Real-estate Playwright fallback failed: {e}")
+            self.last_browser_error = str(e)
             return None
 
-    def _detect_blocking_signals(self, html: Optional[str], status_code: int = 200) -> bool:
+    def _blocking_reason(self, html: Optional[str], status_code: int = 200) -> Optional[str]:
         if status_code in [403, 429, 503] or not html:
-            return True
+            return f"HTTP {status_code} or empty response"
         html_lower = html.lower()
-        return any(signal in html_lower for signal in [
-            "captcha",
-            "cloudflare",
+
+        if "access denied" in html_lower:
+            return "access denied"
+
+        cloudflare_block_markers = [
+            "<title>just a moment",
+            "just a moment...",
             "checking your browser",
+            "challenge-platform",
+            "cf-chl-",
+            "cf_chl_",
+            "/cdn-cgi/challenge-platform/",
+            "cf-browser-verification",
+        ]
+        if any(marker in html_lower for marker in cloudflare_block_markers):
+            return "Cloudflare challenge"
+
+        human_verification_markers = [
             "verify you are a human",
-            "access denied",
-        ])
+            "verify that you are human",
+            "security check",
+            "complete the security check",
+        ]
+        if any(marker in html_lower for marker in human_verification_markers):
+            return "human verification challenge"
+
+        captcha_markers = [
+            "g-recaptcha",
+            "hcaptcha",
+            "captcha-container",
+            "captcha__",
+        ]
+        if any(marker in html_lower for marker in captcha_markers):
+            return "captcha challenge"
+
+        return None
+
+    def _detect_blocking_signals(self, html: Optional[str], status_code: int = 200) -> bool:
+        return self._blocking_reason(html, status_code) is not None
 
     def _extract_title(self, element) -> Optional[str]:
         for selector in self.TITLE_SELECTORS:
@@ -1239,17 +1531,31 @@ class RealEstateCrawler:
         for page_number in range(1, self.max_pages + 1):
             url = self._page_url(page_number)
             html = None
-            try:
-                html = self._fetch_static_page(url)
-                if self._detect_blocking_signals(html):
-                    raise Exception("Blocked or empty static response")
-            except Exception as e:
-                last_error = e
-                print(f"[-] Static real-estate fetch failed for page {page_number}: {e}")
-                if self.use_browser_fallback:
-                    html = self._browser_fetch_page(url)
+            if self._should_use_browser_first():
+                html = self._browser_fetch_page(url)
+                if not html:
+                    last_error = self.last_browser_error or "Browser-first real-estate fetch returned no HTML"
+            else:
+                try:
+                    html = self._fetch_static_page(url)
+                    if self._detect_blocking_signals(html):
+                        raise Exception("Blocked or empty static response")
+                except Exception as e:
+                    last_error = e
+                    print(f"[-] Static real-estate fetch failed for page {page_number}: {e}")
+                    if self.use_browser_fallback:
+                        html = self._browser_fetch_page(url)
 
             if not html:
+                continue
+
+            blocking_reason = self._blocking_reason(html)
+            if blocking_reason:
+                last_error = (
+                    f"{self.source_label} page {page_number} blocked by {blocking_reason}. "
+                    "Refresh the stored session or complete the challenge manually before crawling."
+                )
+                print(f"[-] {last_error}")
                 continue
 
             page_records = self._parse_listings(html)

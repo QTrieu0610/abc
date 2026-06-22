@@ -4,6 +4,8 @@ const toneClasses = {
   running: "border-emerald-400/30 bg-emerald-400/10 text-emerald-300",
   queued: "border-cyan-400/30 bg-cyan-400/10 text-cyan-200",
   open: "border-amber-400/30 bg-amber-400/10 text-amber-300",
+  blocked: "border-amber-400/30 bg-amber-400/10 text-amber-300",
+  skipped: "border-amber-400/30 bg-amber-400/10 text-amber-300",
   resolved: "border-emerald-400/30 bg-emerald-400/10 text-emerald-300",
   completed: "border-indigo-400/30 bg-indigo-400/10 text-indigo-300",
   available: "border-emerald-400/30 bg-emerald-400/10 text-emerald-300",

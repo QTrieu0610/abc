@@ -28,9 +28,11 @@ except ImportError:
 try:
     from data_analyzer import GoldPriceAnalyzer
     from data_collector import HistoricalDataCollector
+    from house_data_collector import HousePriceDataCollector
 except ImportError:
     GoldPriceAnalyzer = None
     HistoricalDataCollector = None
+    HousePriceDataCollector = None
 
 # Initialize FastAPI app
 app = FastAPI(
@@ -86,6 +88,7 @@ class GoldPriceAPI:
 api = GoldPriceAPI(api_key=API_KEY)
 analyzer = GoldPriceAnalyzer() if GoldPriceAnalyzer else None
 collector = HistoricalDataCollector(api_key=API_KEY) if HistoricalDataCollector else None
+house_collector = HousePriceDataCollector() if HousePriceDataCollector else None
 
 
 def empty_source(error: Optional[str] = None) -> Dict[str, Any]:
@@ -194,6 +197,9 @@ def source_job_from_payload(source_name: str, payload: Dict[str, Any], timestamp
     if status == "ok":
         job_status = "completed"
         progress = 100
+    elif status in ["blocked", "skipped"]:
+        job_status = "completed"
+        progress = 100
     elif status == "failed":
         job_status = "failed"
         progress = 0
@@ -233,6 +239,35 @@ def source_job_from_payload(source_name: str, payload: Dict[str, Any], timestamp
         "last_run": timestamp,
         "message": error or ("Backend source returned records." if results else "No records returned."),
     }
+
+
+def is_blocked_real_estate_payload(payload: Dict[str, Any]) -> bool:
+    if not isinstance(payload, dict):
+        return False
+    message = str(payload.get("error") or payload.get("message") or "").lower()
+    return any(token in message for token in [
+        "cloudflare",
+        "captcha",
+        "access denied",
+        "403",
+        "forbidden",
+        "human verification",
+        "blocked",
+    ])
+
+
+def soften_blocked_house_source(source_name: str, payload: Dict[str, Any]) -> Dict[str, Any]:
+    if not is_blocked_real_estate_payload(payload):
+        return payload
+
+    softened = dict(payload)
+    softened["status"] = "blocked"
+    softened["results"] = payload.get("results") if isinstance(payload.get("results"), list) else []
+    softened["error"] = (
+        payload.get("error")
+        or f"{source_name.upper()} is blocked by anti-bot protection. Other sources can still complete."
+    )
+    return softened
 
 # WebSocket Connection Manager
 class ConnectionManager:
@@ -328,6 +363,27 @@ login_test_executor = ThreadPoolExecutor(max_workers=1)
 login_test_lock = threading.Lock()
 login_test_jobs: Dict[str, Dict[str, Any]] = {}
 hitl_cases: Dict[str, Dict[str, Any]] = {}
+
+
+def blocking_reason_from_message(message: Optional[str]) -> Optional[Tuple[str, str, str]]:
+    value = (message or "").lower()
+    if "mfa" in value or "otp" in value:
+        return ("mfa_required", "MFA Required", "medium")
+    if "captcha" in value:
+        return ("captcha_detected", "CAPTCHA Detected", "high")
+    if "cloudflare" in value or "verify you are a human" in value or "human verification" in value:
+        return ("captcha_detected", "Cloudflare Challenge", "high")
+    if "access denied" in value or "403" in value or "forbidden" in value:
+        return ("access_denied", "Access Denied", "critical")
+    if "429" in value or "rate limit" in value:
+        return ("rate_limited", "Rate Limited", "high")
+    if "503" in value or "checking your browser" in value:
+        return ("browser_event", "Browser Verification", "medium")
+    if "timeout" in value:
+        return ("timeout", "Timeout", "medium")
+    if "browser" in value or "playwright" in value:
+        return ("browser_error", "Browser Error", "high")
+    return None
 
 
 def public_login_job(job: Dict[str, Any]) -> Dict[str, Any]:
@@ -616,6 +672,7 @@ async def get_current_prices(save_to_csv: bool = Query(True, description="Save c
 async def get_house_prices(
     max_pages: int = Query(1, ge=1, le=5, description="Number of listing pages to crawl per source"),
     use_browser_fallback: bool = Query(True, description="Use Playwright if static HTML fetch is blocked"),
+    save_to_csv: bool = Query(True, description="Save successful house-price listings to CSV"),
 ):
     """Get current real-estate listing prices from configured housing sources."""
     try:
@@ -633,15 +690,30 @@ async def get_house_prices(
         }
 
     prices = {
-        "batdongsan": current_data.get("batdongsan", empty_source("Missing Batdongsan payload")),
-        "alonhadat": current_data.get("alonhadat", empty_source("Missing AloNhaDat payload")),
+        "batdongsan": soften_blocked_house_source(
+            "batdongsan",
+            current_data.get("batdongsan", empty_source("Missing Batdongsan payload")),
+        ),
+        "alonhadat": soften_blocked_house_source(
+            "alonhadat",
+            current_data.get("alonhadat", empty_source("Missing AloNhaDat payload")),
+        ),
     }
 
     manager.last_house_prices = prices
 
+    saved_records = 0
+    if save_to_csv and house_collector:
+        try:
+            saved_records = await asyncio.to_thread(house_collector.append_to_csv, prices)
+        except Exception as e:
+            print(f"Error saving house prices to CSV: {e}")
+
     return {
         "timestamp": datetime.now().isoformat(),
         "topic": "house-price",
+        "saved_records": saved_records,
+        "data_file": house_collector.default_path() if house_collector else None,
         **prices
     }
 
@@ -795,6 +867,77 @@ async def get_hitl_cases():
         "cases": cases,
         "warning": "Continue only when this crawl is authorized and compliant with the target website policy.",
     }
+
+
+@app.get("/api/blocking-signals")
+async def get_blocking_signals():
+    """Return crawler/login blocking signals detected by backend jobs."""
+    blocking_types = {
+        "mfa_required",
+        "captcha_detected",
+        "access_denied",
+        "timeout",
+        "browser_error",
+        "browser_event",
+    }
+    with login_test_lock:
+        signals = [
+            {
+                "signal_id": case.get("case_id"),
+                "job_id": case.get("job_id"),
+                "topic": case.get("topic"),
+                "source": case.get("source"),
+                "signal_type": case.get("signal_type"),
+                "reason": case.get("reason"),
+                "severity": case.get("severity"),
+                "status": case.get("status"),
+                "message": case.get("message"),
+                "action": case.get("action"),
+                "created_at": case.get("created_at"),
+                "updated_at": case.get("updated_at"),
+            }
+            for case in hitl_cases.values()
+            if case.get("signal_type") in blocking_types
+        ]
+
+    source_payloads = []
+    for topic, payloads in [
+        ("House Price", manager.last_house_prices or {}),
+        ("Gold Price", manager.last_prices or {}),
+    ]:
+        for source, payload in payloads.items():
+            if not isinstance(payload, dict):
+                continue
+            message = payload.get("error") or payload.get("message")
+            reason = blocking_reason_from_message(message)
+            if not reason:
+                continue
+            signal_type, label, severity = reason
+            source_payloads.append({
+                "signal_id": f"{topic.lower().replace(' ', '-')}-{source}-{signal_type}",
+                "job_id": None,
+                "topic": topic,
+                "source": source.upper(),
+                "signal_type": signal_type,
+                "reason": label,
+                "severity": severity,
+                "status": "open",
+                "message": message,
+                "action": "Open Batdongsan in Cloak Browser on localhost:9222, complete Cloudflare, then refresh again. The crawler will save the cleared session.",
+                "created_at": None,
+                "updated_at": datetime.now().isoformat(),
+            })
+
+    signals.extend(source_payloads)
+    signals.sort(key=lambda item: item.get("updated_at") or item.get("created_at") or "", reverse=True)
+    open_count = sum(1 for signal in signals if signal.get("status") == "open")
+    return {
+        "timestamp": datetime.now().isoformat(),
+        "count": len(signals),
+        "open_count": open_count,
+        "signals": signals,
+    }
+
 
 @app.post("/api/update-historical-data")
 async def update_historical_data():
@@ -1113,6 +1256,23 @@ async def export_csv():
         csv_file,
         media_type='text/csv',
         filename='gold_prices_export.csv'
+    )
+
+
+@app.get("/api/export/house-prices-csv")
+async def export_house_prices_csv():
+    """Export saved house-price listings as CSV."""
+    if not house_collector:
+        raise HTTPException(status_code=503, detail="House price data collector unavailable")
+
+    csv_file = house_collector.default_path()
+    if not os.path.exists(csv_file):
+        raise HTTPException(status_code=404, detail="No house price data available")
+
+    return FileResponse(
+        csv_file,
+        media_type='text/csv',
+        filename='house_price_listings_export.csv'
     )
 
 @app.post("/api/data/update")

@@ -33,7 +33,7 @@ function median(values) {
 
 function buildSummary(records, data) {
   const sourcePayloads = [data?.batdongsan, data?.alonhadat].filter(Boolean);
-  const healthySources = sourcePayloads.filter((payload) => payload?.status === "ok").length;
+  const completedSources = sourcePayloads.filter((payload) => ["ok", "blocked", "skipped"].includes(payload?.status)).length;
   const priced = records.filter((record) => record.price);
   const withArea = records.filter((record) => record.area_m2);
   const medianPrice = median(priced.map((record) => record.price));
@@ -47,9 +47,9 @@ function buildSummary(records, data) {
       icon: Database,
     },
     {
-      label: "Sources OK",
-      value: `${healthySources}/${sourcePayloads.length || 2}`,
-      detail: "Crawler source status",
+      label: "Sources Done",
+      value: `${completedSources}/${sourcePayloads.length || 2}`,
+      detail: "Completed or blocked",
       icon: Gauge,
     },
     {
@@ -85,7 +85,7 @@ export default function HousePricePage() {
     [browserFallback, maxPages]
   );
 
-  const { data, loading, refreshing, error, refresh } = useAutoRefresh(fetchHousePrices, 60000);
+  const { data, loading, refreshing, error, refresh } = useAutoRefresh(fetchHousePrices, 0, false);
   const records = useMemo(() => flattenListings(data), [data]);
   const summary = useMemo(() => buildSummary(records, data), [records, data]);
   const warning = sourceMessage(data);
@@ -183,7 +183,11 @@ export default function HousePricePage() {
             <EmptyState title="No house price data available." message="Refresh the topic or enable browser fallback." />
           )}
 
-          <p className="text-xs text-muted">Last update: {formatDateTime(data?.timestamp)}</p>
+          <p className="text-xs text-muted">
+            Last update: {formatDateTime(data?.timestamp)}
+            {data?.data_file ? ` | Saved to ${data.data_file}` : ""}
+            {Number.isFinite(Number(data?.saved_records)) ? ` | New rows: ${data.saved_records}` : ""}
+          </p>
         </>
       )}
     </div>
