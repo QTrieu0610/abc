@@ -23,6 +23,7 @@ export default function Sidebar({ collapsed, onToggle }) {
   const hitlCount = Number(data?.open_count || 0);
   const items = [
     { label: "Overview", to: "/overview", icon: Home },
+    { label: "Manage Sources", to: "/manage-sources", icon: Database },
     { label: "Crawl Jobs", to: "/crawl-jobs", icon: Gauge },
     { label: "Sessions & Identities", to: "/sessions", icon: UserCheck },
     { label: "Blocking Signals", to: "/blocking-signals", icon: ShieldAlert },

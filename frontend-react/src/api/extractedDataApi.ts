@@ -36,11 +36,12 @@ export interface HousePricesResponse {
   alonhadat?: HousePriceSourcePayload;
 }
 
-export function getHousePrices(params: { max_pages?: number; use_browser_fallback?: boolean } = {}) {
+export function getHousePrices(refresh: boolean = false, params: { max_pages?: number; use_browser_fallback?: boolean } = {}) {
   return apiRequest<HousePricesResponse>(
     `/api/house-prices${buildQuery({
       max_pages: params.max_pages ?? 1,
       use_browser_fallback: params.use_browser_fallback ?? false,
+      refresh: refresh,
     })}`
   );
 }

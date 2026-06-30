@@ -10,6 +10,8 @@ import OverviewPage from "./pages/OverviewPage";
 import SessionsPage from "./pages/SessionsPage";
 import SettingsPage from "./pages/SettingsPage";
 
+import ManageSourcesPage from "./pages/ManageSourcesPage";
+
 function GoldWithTopics() {
   return (
     <TopicDashboardLayout>
@@ -31,6 +33,7 @@ export default function App() {
         <Route path="crypto-price" element={<Navigate to="/extracted-data/crypto-price" replace />} />
         <Route path="forex-rate" element={<Navigate to="/extracted-data/forex-rate" replace />} />
         <Route path="commodity-price" element={<Navigate to="/extracted-data/commodity-price" replace />} />
+        <Route path="manage-sources" element={<ManageSourcesPage />} />
         <Route path="crawl-jobs" element={<CrawlJobsPage />} />
         <Route path="sessions" element={<SessionsPage />} />
         <Route path="blocking-signals" element={<EndpointMissingPage page="blocking-signals" />} />

@@ -151,29 +151,36 @@ function NotConnectedCard({ title, message }) {
 }
 
 function normalizeHousePriceResponse(data) {
-  const sources = ["batdongsan", "alonhadat"];
-  return sources.flatMap((source) => {
-    const payload = data?.[source];
-    const rows = Array.isArray(payload?.results) ? payload.results : [];
-    return rows.map((row, index) => ({
-      id: `${source}-${row.url || row.title || index}`,
-      source,
-      title: row.title || "Untitled listing",
-      price: row.price ?? null,
-      priceText: row.price_text || null,
-      areaM2: row.area_m2 ?? null,
-      pricePerM2: row.price_per_m2 ?? null,
-      location: row.location || "N/A",
-      url: row.url || null,
-    }));
-  });
+  if (!data || typeof data !== "object") return [];
+  const rows = [];
+  for (const [source, payload] of Object.entries(data)) {
+    if (source === "timestamp" || source === "error") continue;
+    const sourceRows = Array.isArray(payload?.results) ? payload.results : [];
+    sourceRows.forEach((row, index) => {
+      rows.push({
+        id: `${source}-${row.url || row.title || index}`,
+        source,
+        title: row.title || "Untitled listing",
+        price: row.price ?? null,
+        priceText: row.price_text || null,
+        areaM2: row.area_m2 ?? null,
+        pricePerM2: row.price_per_m2 ?? null,
+        location: row.location || "N/A",
+        url: row.url || null,
+      });
+    });
+  }
+  return rows;
 }
 
 function getHouseSourceStatuses(data) {
-  return {
-    batdongsan: data?.batdongsan?.status || "empty",
-    alonhadat: data?.alonhadat?.status || "empty",
-  };
+  const statuses = {};
+  if (!data || typeof data !== "object") return statuses;
+  for (const [source, payload] of Object.entries(data)) {
+    if (source === "timestamp" || source === "error") continue;
+    statuses[source] = payload?.status || "empty";
+  }
+  return statuses;
 }
 
 function median(values) {
@@ -191,17 +198,17 @@ const topicOptions = [
 export default function OverviewPage() {
   const [selectedTopic, setSelectedTopic] = useState("gold-price");
 
-  const fetchOverview = useCallback(async () => {
+  const fetchOverview = useCallback(async (isUserAction) => {
     const topicRequests =
       selectedTopic === "house-price"
         ? [
-            settle("housePrices", getHousePrices({ max_pages: 1, use_browser_fallback: true })),
+            settle("housePrices", getHousePrices(isUserAction, { max_pages: 1, use_browser_fallback: true })),
             settle("availableDates", Promise.resolve(null)),
             settle("trends", Promise.resolve(null)),
             settle("sourceMomentum", Promise.resolve(null)),
           ]
         : [
-            settle("currentPrices", getCurrentGoldPrices()),
+            settle("currentPrices", getCurrentGoldPrices(isUserAction)),
             settle("availableDates", getAvailableGoldDates()),
             settle(
               "trends",

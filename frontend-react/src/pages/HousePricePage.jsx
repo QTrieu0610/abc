@@ -1,4 +1,4 @@
-import { useMemo, useState } from "react";
+import { useCallback, useMemo, useState } from "react";
 import { Building2, Database, Gauge, Home, SquareStack } from "lucide-react";
 import { getHousePrices } from "../api/extractedDataApi";
 import EmptyState from "../components/common/EmptyState";
@@ -6,22 +6,27 @@ import ErrorState from "../components/common/ErrorState";
 import LoadingState from "../components/common/LoadingState";
 import MetricCard from "../components/common/MetricCard";
 import RefreshButton from "../components/common/RefreshButton";
+import CustomCrawlerForm from "../components/common/CustomCrawlerForm";
 import DataTable from "../components/tables/DataTable";
 import { useAutoRefresh } from "../hooks/useAutoRefresh";
 import { formatDateTime, formatVNDWithUnit } from "../utils/format";
 
 function flattenListings(data) {
-  const sources = ["batdongsan", "alonhadat"];
-  return sources.flatMap((sourceKey) => {
-    const payload = data?.[sourceKey];
-    const rows = Array.isArray(payload?.results) ? payload.results : [];
-    return rows.map((row, index) => ({
-      id: `${sourceKey}-${row.url || row.title || index}`,
-      sourceKey,
-      sourceStatus: payload?.status || "unknown",
-      ...row,
-    }));
-  });
+  if (!data || typeof data !== "object") return [];
+  const rows = [];
+  for (const [sourceKey, payload] of Object.entries(data)) {
+    if (sourceKey === "timestamp" || sourceKey === "error") continue;
+    const records = Array.isArray(payload?.results) ? payload.results : [];
+    records.forEach((row, index) => {
+      rows.push({
+        id: `${sourceKey}-${row.url || row.title || index}`,
+        sourceKey,
+        sourceStatus: payload?.status || "unknown",
+        ...row,
+      });
+    });
+  }
+  return rows;
 }
 
 function median(values) {
@@ -32,7 +37,7 @@ function median(values) {
 }
 
 function buildSummary(records, data) {
-  const sourcePayloads = [data?.batdongsan, data?.alonhadat].filter(Boolean);
+  const sourcePayloads = data && typeof data === "object" ? Object.entries(data).filter(([key]) => key !== "timestamp" && key !== "error").map(([_, p]) => p) : [];
   const healthySources = sourcePayloads.filter((payload) => payload?.status === "ok").length;
   const priced = records.filter((record) => record.price);
   const withArea = records.filter((record) => record.area_m2);
@@ -80,8 +85,8 @@ export default function HousePricePage() {
   const [browserFallback, setBrowserFallback] = useState(true);
   const [maxPages, setMaxPages] = useState(1);
 
-  const fetchHousePrices = useMemo(
-    () => () => getHousePrices({ max_pages: maxPages, use_browser_fallback: browserFallback }),
+  const fetchHousePrices = useCallback(
+    (isUserAction) => getHousePrices(isUserAction, { max_pages: maxPages, use_browser_fallback: browserFallback }),
     [browserFallback, maxPages]
   );
 
@@ -134,6 +139,8 @@ export default function HousePricePage() {
 
   return (
     <div className="space-y-5">
+      <CustomCrawlerForm type="real_estate" placeholder="Enter URL to extract real estate listings (e.g., https://alonhadat.com.vn/...)" />
+
       <div className="rounded-lg border border-line bg-panel p-4">
         <div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
           <div className="flex items-center gap-3">

@@ -88,17 +88,20 @@ function mapSourceRecords(
 
 export function normalizeGoldPriceResponse(data?: GoldPricesResponse): GoldPriceRecord[] {
   if (!data || typeof data !== "object") return [];
-  return [
-    ...mapSourceRecords("sjc", data.sjc, data.timestamp),
-    ...mapSourceRecords("doji", data.doji, data.timestamp),
-    ...mapSourceRecords("pnj", data.pnj, data.timestamp),
-  ];
+  const records: GoldPriceRecord[] = [];
+  for (const [key, payload] of Object.entries(data)) {
+    if (key === 'timestamp' || key === 'error') continue;
+    records.push(...mapSourceRecords(key as any, payload as SourcePayload, data.timestamp));
+  }
+  return records;
 }
 
-export function getSourceStatuses(data?: GoldPricesResponse) {
-  return {
-    sjc: data?.sjc?.status || "empty",
-    doji: data?.doji?.status || "empty",
-    pnj: data?.pnj?.status || "empty",
-  };
+export function getSourceStatuses(data?: any) {
+  const statuses: Record<string, string> = {};
+  if (!data) return statuses;
+  for (const [key, payload] of Object.entries(data)) {
+    if (key === 'timestamp' || key === 'error') continue;
+    statuses[key] = (payload as SourcePayload)?.status || "empty";
+  }
+  return statuses;
 }

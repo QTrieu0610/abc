@@ -42,8 +42,8 @@ export interface SourceMomentumResponse {
   };
 }
 
-export function getCurrentGoldPrices() {
-  return apiRequest<GoldPricesResponse>("/api/current-prices?save_to_csv=false");
+export function getCurrentGoldPrices(refresh: boolean = false) {
+  return apiRequest<GoldPricesResponse>(`/api/current-prices?save_to_csv=false&refresh=${refresh}`);
 }
 
 export function getGoldPricesByDate(date: string) {

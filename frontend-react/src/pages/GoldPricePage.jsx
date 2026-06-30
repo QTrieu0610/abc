@@ -12,6 +12,7 @@ import EmptyState from "../components/common/EmptyState";
 import ErrorState from "../components/common/ErrorState";
 import LoadingState from "../components/common/LoadingState";
 import RefreshButton from "../components/common/RefreshButton";
+import CustomCrawlerForm from "../components/common/CustomCrawlerForm";
 import GoldPriceCard from "../components/gold-price/GoldPriceCard";
 import GoldPriceTable from "../components/gold-price/GoldPriceTable";
 import GoldSummaryCard from "../components/gold-price/GoldSummaryCard";
@@ -31,32 +32,36 @@ function findCompanyRecord(records, company) {
 }
 
 function buildFeedCards(records, statuses) {
-  const preferred = [
-    {
-      company: "SJC",
-      label: "WEBGIA/SJC FEED",
-      title: "SJC Reference Price",
-      record: findCompanyRecord(records, "SJC"),
-      status: statuses.sjc,
-    },
-    {
-      company: "DOJI",
-      label: "OFFICIAL DOJI FEED",
-      title: "DOJI Market Price",
-      record: findCompanyRecord(records, "DOJI"),
-      status: statuses.doji,
-    },
-    {
-      company: "PNJ",
-      label: "OFFICIAL PNJ FEED",
-      title: "PNJ Retail Price",
-      record: findCompanyRecord(records, "PNJ"),
-      status: statuses.pnj,
-    },
-  ];
+  const cards = [];
+  const knownLabels = {
+    sjc: { label: "WEBGIA/SJC FEED", title: "SJC Reference Price" },
+    doji: { label: "OFFICIAL DOJI FEED", title: "DOJI Market Price" },
+    pnj: { label: "OFFICIAL PNJ FEED", title: "PNJ Retail Price" }
+  };
 
-  if (preferred.some((card) => card.record)) return preferred;
+  for (const sourceKey of Object.keys(statuses)) {
+    const isKnown = knownLabels[sourceKey];
+    const upperKey = sourceKey.toUpperCase();
+    
+    // First try to find a record using the standard logic
+    let record = findCompanyRecord(records, upperKey);
+    // If not found, try to find any record that has source matching the key
+    if (!record) {
+      record = records.find(r => r.source?.toUpperCase().includes(upperKey) || r.company?.toUpperCase().includes(upperKey)) || null;
+    }
 
+    cards.push({
+      company: upperKey,
+      label: isKnown ? isKnown.label : `CUSTOM FEED: ${upperKey}`,
+      title: isKnown ? isKnown.title : `${upperKey} Price`,
+      record: record,
+      status: statuses[sourceKey],
+    });
+  }
+  
+  if (cards.length > 0) return cards;
+
+  // Fallback if statuses is completely empty
   return [0, 1, 2].map((index) => ({
     company: records[index]?.company || "Unknown",
     label: records[index]?.source || "BACKEND FEED",
@@ -162,8 +167,12 @@ export default function GoldPricePage() {
     };
   }, []);
 
-  const fetchGold = useCallback(() => {
-    return selectedDate ? getGoldPricesByDate(selectedDate) : getCurrentGoldPrices();
+  const fetchGold = useCallback((isUserAction) => {
+    if (isUserAction) {
+      if (selectedDate) setSelectedDate("");
+      return getCurrentGoldPrices(true);
+    }
+    return selectedDate ? getGoldPricesByDate(selectedDate) : getCurrentGoldPrices(false);
   }, [selectedDate]);
 
   const { data, loading, refreshing, error, refresh } = useAutoRefresh(fetchGold, 30000);
@@ -175,6 +184,8 @@ export default function GoldPricePage() {
 
   return (
     <div className="space-y-5">
+      <CustomCrawlerForm type="gold" placeholder="Enter URL to extract gold prices (e.g., https://giavang.doji.vn/)" />
+      
       <div className="rounded-lg border border-line bg-panel p-4">
         <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
           <div className="flex items-center gap-3">
