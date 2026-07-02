@@ -23,7 +23,7 @@ def auto_solve_challenge(page):
                     page.mouse.click(x, y)
                     print("[+] Clicked inside iframe via coordinates!")
                     return
-    except Exception as e:
+    except Exception:
         pass
         
     try:
@@ -75,7 +75,7 @@ def _fetch_html_with_playwright_locked(url: str, profile_name: str = "default") 
     try:
         page = context.pages[0] if context.pages else context.new_page()
         
-        # Additional anti-detect to reinforce humanize
+        # Enhanced anti-detect to bypass shadow blocks
         page.add_init_script("""
             Object.defineProperty(navigator, 'webdriver', {
                 get: () => undefined
@@ -83,10 +83,18 @@ def _fetch_html_with_playwright_locked(url: str, profile_name: str = "default") 
             window.navigator.chrome = {
                 runtime: {},
             };
+            Object.defineProperty(navigator, 'languages', {
+                get: () => ['vi-VN', 'vi', 'en-US', 'en'],
+            });
+            Object.defineProperty(navigator, 'plugins', {
+                get: () => [1, 2, 3, 4, 5],
+            });
         """)
 
-        response = page.goto(url, timeout=30000, wait_until="domcontentloaded")
+        # Navigate
+        page.goto(url, timeout=30000, wait_until="domcontentloaded")
         
+        # Check for Cloudflare / Captchas
         html = page.content()
         lower_html = html.lower()
         if "cloudflare" in lower_html or "just a moment" in lower_html or "captcha" in lower_html:
@@ -95,6 +103,25 @@ def _fetch_html_with_playwright_locked(url: str, profile_name: str = "default") 
             auto_solve_challenge(page)
             page.wait_for_timeout(random.randint(3000, 5000))
             
+        # Scroll to trigger lazy rendering
+        try:
+            page.evaluate("window.scrollTo(0, document.body.scrollHeight / 2)")
+            page.wait_for_timeout(500)
+            page.evaluate("window.scrollTo(0, document.body.scrollHeight)")
+            page.wait_for_timeout(500)
+            page.evaluate("window.scrollTo(0, 0)")
+            page.wait_for_timeout(500)
+        except Exception:
+            pass
+
+        # Wait for table selector (up to 5s) to resolve CSR delays
+        try:
+            page.wait_for_selector("table", timeout=5000)
+            print("[+] Found table selector in DOM!")
+            page.wait_for_timeout(1000)  # Extra second to render dynamic content
+        except Exception:
+            print("[-] No table found in DOM within 5s, returning current content.")
+
         return page.content()
     finally:
         context.close()

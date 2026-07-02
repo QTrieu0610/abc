@@ -1,3 +1,5 @@
-2026/06/30-08:23:10.188 31a0 Reusing MANIFEST C:\Users\vderf\Downloads\gold-price-dashboard-main\gold-price-dashboard-main\backend\browser_profiles\default\Default\Local Storage\leveldb/MANIFEST-000001
-2026/06/30-08:23:10.214 31a0 Recovering log #33
-2026/06/30-08:23:10.218 31a0 Reusing old log C:\Users\vderf\Downloads\gold-price-dashboard-main\gold-price-dashboard-main\backend\browser_profiles\default\Default\Local Storage\leveldb/000033.log 
+2026/07/02-13:39:02.760 6c08 Reusing MANIFEST C:\Users\vderf\Downloads\gold-price-dashboard-main\gold-price-dashboard-main\backend\browser_profiles\default\Default\Local Storage\leveldb/MANIFEST-000001
+2026/07/02-13:39:02.771 6c08 Recovering log #33
+2026/07/02-13:39:02.778 6c08 Reusing old log C:\Users\vderf\Downloads\gold-price-dashboard-main\gold-price-dashboard-main\backend\browser_profiles\default\Default\Local Storage\leveldb/000033.log 
+2026/07/02-13:39:31.563 1ad0 Level-0 table #36: started
+2026/07/02-13:39:31.582 1ad0 Level-0 table #36: 14668 bytes OK

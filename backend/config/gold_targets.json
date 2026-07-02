@@ -2,21 +2,78 @@
     {
         "id": "sjc",
         "url": "https://webgia.com/gia-vang/sjc/",
-        "label": "gold"
+        "label": "gold",
+        "crawler_type": "table",
+        "table_selector": "table",
+        "output_format": "flat",
+        "company_name": "SJC",
+        "gold_type_mapping": {
+            "1l": "1l",
+            "mi\u1ebfng": "1l",
+            "mieng": "1l",
+            "nh\u1eabn": "nhan1c",
+            "nhan": "nhan1c",
+            "n\u1eef trang 99,99": "nutrang_9999",
+            "n\u1eef trang 9999": "nutrang_9999",
+            "99,99": "nutrang_9999",
+            "99": "nutrang_99",
+            "75": "nutrang_75",
+            "18k": "nutrang_75"
+        }
     },
     {
         "id": "doji",
         "url": "https://giavang.doji.vn/",
-        "label": "gold"
+        "label": "gold",
+        "crawler_type": "table",
+        "table_selector": "table",
+        "output_format": "normalized",
+        "company_name": "DOJI",
+        "default_location": "Hanoi",
+        "gold_type_mapping": {
+            "sjc": "SJC - B\u00e1n L\u1ebb",
+            "avpl": "AVPL / Kim TT",
+            "kim tt": "AVPL / Kim TT",
+            "nhan tron": "Nh\u1eabn Tr\u00f2n 9999",
+            "nh\u1eabn tr\u00f2n": "Nh\u1eabn Tr\u00f2n 9999",
+            "hung thinh": "Nh\u1eabn Tr\u00f2n 9999"
+        },
+        "location_mapping": {
+            "ha noi": "Hanoi",
+            "h\u00e0 n\u1ed9i": "Hanoi",
+            "da nang": "Da Nang",
+            "\u0111\u00e0 n\u1eb5ng": "Da Nang",
+            "ho chi minh": "Ho Chi Minh City",
+            "h\u1ed3 ch\u00ed minh": "Ho Chi Minh City"
+        }
     },
     {
         "id": "pnj",
         "url": "https://www.pnj.com.vn/site/gia-vang",
-        "label": "gold"
+        "label": "gold",
+        "crawler_type": "api"
     },
     {
         "id": "123",
         "url": "https://www.24h.com.vn/gia-vang-hom-nay-c425.html",
+        "label": "gold",
+        "crawler_type": "table",
+        "table_selector": "table",
+        "company_name": "24H",
+        "gold_type_mapping": {
+            "sjc": "SJC",
+            "nh\u1eabn": "Nh\u1eabn Tr\u01a1n",
+            "n\u1eef trang 99,99": "N\u1eef trang 24K"
+        }
+    },
+    {
+        "id": "giavangvietnam",
+        "url": "https://giavangvietnam.com",
+        "label": "gold"
+    },
+    {
+        "id": "kimthanhh",
+        "url": "https://kimthanhh.com/gia-vang",
         "label": "gold"
     }
 ]

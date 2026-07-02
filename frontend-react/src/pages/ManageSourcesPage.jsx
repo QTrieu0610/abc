@@ -8,7 +8,7 @@ const ManageSourcesPage = () => {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
 
-  const [newTarget, setNewTarget] = useState({ type: 'gold', id: '', url: '' });
+  const [newTarget, setNewTarget] = useState({ type: 'gold', url: '' });
   const [adding, setAdding] = useState(false);
 
   const fetchData = async () => {
@@ -44,14 +44,13 @@ const ManageSourcesPage = () => {
 
   const handleAdd = async (e) => {
     e.preventDefault();
-    if (!newTarget.id || !newTarget.url) return;
+    if (!newTarget.url) return;
     setAdding(true);
     try {
       const res = await fetch(`${API_BASE_URL}/api/targets/${newTarget.type}`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          id: newTarget.id.toLowerCase().replace(/[^a-z0-9_-]/g, ''),
           url: newTarget.url
         })
       });
@@ -59,11 +58,11 @@ const ManageSourcesPage = () => {
         const errData = await res.json();
         throw new Error(errData.detail || 'Failed to add source');
       }
-      setNewTarget({ ...newTarget, id: '', url: '' });
+      setNewTarget({ ...newTarget, url: '' });
       fetchData();
     } catch (err) {
       console.error(err);
-      alert(err.message || 'Failed to add source. ID might already exist.');
+      alert(err.message || 'Failed to add source.');
     } finally {
       setAdding(false);
     }
@@ -176,19 +175,7 @@ const ManageSourcesPage = () => {
             </select>
           </div>
           
-          <div className="md:col-span-3">
-            <label className="block text-sm font-medium text-slate-300 mb-2">Unique ID</label>
-            <input
-              type="text"
-              placeholder="e.g. btmc"
-              value={newTarget.id}
-              onChange={(e) => setNewTarget({ ...newTarget, id: e.target.value })}
-              className="w-full bg-slate-900/80 border border-slate-700 rounded-lg px-4 py-2.5 text-white focus:outline-none focus:border-indigo-500 transition-colors placeholder:text-slate-600 font-mono"
-              required
-            />
-          </div>
-
-          <div className="md:col-span-4">
+          <div className="md:col-span-7">
             <label className="block text-sm font-medium text-slate-300 mb-2">Target URL</label>
             <div className="relative">
               <LinkIcon className="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 text-slate-500" />

@@ -37,43 +37,54 @@ export function mapBackendGoldRecord(raw: any): GoldPriceRecord {
   };
 }
 
-function expandSjcRecord(raw: any, timestamp?: string): GoldPriceRecord[] {
-  const definitions = [
-    ["buy_1l", "sell_1l", "SJC 1L"],
-    ["buy_nhan1c", "sell_nhan1c", "SJC Ring 1C"],
-    ["buy_nutrang_9999", "sell_nutrang_9999", "SJC Jewelry 24K"],
-    ["buy_nutrang_99", "sell_nutrang_99", "SJC Jewelry 99%"],
-    ["buy_nutrang_75", "sell_nutrang_75", "SJC Jewelry 18K"],
-  ];
+function expandFlatRecord(raw: any, companyName: string, timestamp?: string): GoldPriceRecord[] {
+  const buyKeys = Object.keys(raw || {}).filter(k => k.startsWith("buy_"));
+  const records: GoldPriceRecord[] = [];
+  
+  // Custom display mapping for SJC types to keep existing visuals clean
+  const sjcDisplayNames: Record<string, string> = {
+    "1l": "SJC 1L",
+    "nhan1c": "SJC Ring 1C",
+    "nutrang_9999": "SJC Jewelry 24K",
+    "nutrang_99": "SJC Jewelry 99%",
+    "nutrang_75": "SJC Jewelry 18K",
+  };
 
-  return definitions
-    .map(([buyKey, sellKey, goldType]) => {
-      const buy = toNumber(raw[buyKey]);
-      const sell = toNumber(raw[sellKey]);
-      if (buy === null && sell === null) return null;
-      return {
-        company: "SJC",
+  for (const buyKey of buyKeys) {
+    const suffix = buyKey.substring(4);
+    const sellKey = `sell_${suffix}`;
+    const buy = toNumber(raw[buyKey]);
+    const sell = toNumber(raw[sellKey]);
+    
+    if (buy !== null || sell !== null) {
+      const typeDisplay = sjcDisplayNames[suffix] || suffix.toUpperCase();
+      records.push({
+        company: companyName.toUpperCase() === "SJC" ? "SJC" : companyName.toUpperCase(),
         region: "National",
-        goldType,
+        goldType: typeDisplay,
         buy,
         sell,
         spread: buy !== null && sell !== null ? sell - buy : null,
         timestamp: raw.timestamp ?? timestamp,
-        source: "WEBGIA/SJC",
-      };
-    })
-    .filter(Boolean) as GoldPriceRecord[];
+        source: companyName.toUpperCase(),
+      });
+    }
+  }
+  return records;
 }
 
 function mapSourceRecords(
-  sourceKey: "sjc" | "doji" | "pnj",
+  sourceKey: string,
   source?: SourcePayload,
   timestamp?: string
 ): GoldPriceRecord[] {
   const records = Array.isArray(source?.results) ? source.results : [];
 
-  if (sourceKey === "sjc") {
-    return records.flatMap((record) => expandSjcRecord(record, timestamp));
+  // Dynamic flat keys detection
+  const hasFlatKeys = records.some(r => r && typeof r === "object" && Object.keys(r).some(k => k.startsWith("buy_")));
+
+  if (hasFlatKeys) {
+    return records.flatMap((record) => expandFlatRecord(record, sourceKey, timestamp));
   }
 
   return records.map((record: any) => ({

@@ -3,6 +3,10 @@ from pydantic import BaseModel
 import json
 import os
 
+from typing import Optional
+from urllib.parse import urlparse
+import re
+
 router = APIRouter()
 
 CONFIG_DIR = 'config'
@@ -10,8 +14,34 @@ GOLD_TARGETS_FILE = os.path.join(CONFIG_DIR, 'gold_targets.json')
 REAL_ESTATE_TARGETS_FILE = os.path.join(CONFIG_DIR, 'real_estate_targets.json')
 
 class TargetRequest(BaseModel):
-    id: str
+    id: Optional[str] = None
     url: str
+
+def generate_id_from_url(url: str, existing_ids: list) -> str:
+    try:
+        parsed = urlparse(url)
+        host = parsed.netloc or parsed.path
+        host = host.split(':')[0]  # Remove port
+        parts = host.split('.')
+        if len(parts) > 1:
+            if parts[0] == 'web' or parts[0] == 'www':
+                domain = parts[1]
+            else:
+                domain = parts[0]
+        else:
+            domain = host
+        slug = re.sub(r'[^a-zA-Z0-9]', '', domain).lower()
+        if not slug:
+            slug = "target"
+    except Exception:
+        slug = "target"
+
+    base_slug = slug
+    counter = 1
+    while slug in existing_ids:
+        slug = f"{base_slug}_{counter}"
+        counter += 1
+    return slug
 
 def get_file_path(target_type: str):
     if target_type == 'gold':
@@ -40,10 +70,17 @@ async def get_targets(target_type: str):
 @router.post("/api/targets/{target_type}")
 async def add_target(target_type: str, target: TargetRequest):
     targets = read_targets(target_type)
-    for t in targets:
-        if t['id'] == target.id:
+    existing_ids = [t['id'] for t in targets]
+    
+    target_id = target.id
+    if not target_id or not target_id.strip():
+        target_id = generate_id_from_url(target.url, existing_ids)
+    else:
+        target_id = re.sub(r'[^a-zA-Z0-9_-]', '', target_id).lower()
+        if target_id in existing_ids:
             raise HTTPException(status_code=400, detail="ID already exists")
-    targets.append({'id': target.id, 'url': target.url, 'label': target_type})
+            
+    targets.append({'id': target_id, 'url': target.url, 'label': target_type})
     write_targets(target_type, targets)
     return {"status": "success", "message": "Target added successfully"}
 

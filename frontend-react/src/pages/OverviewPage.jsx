@@ -70,8 +70,8 @@ function CompactMetric({ label, value, detail, icon: Icon, status }) {
 
 function SourceStatusPanel({ sourceRows }) {
   const total = sourceRows.length;
-  const ok = sourceRows.filter((row) => row.status === "ok").length;
-  const failed = sourceRows.filter((row) => row.status === "failed").length;
+  const ok = sourceRows.filter((row) => row.status === "ok" || row.status === "success").length;
+  const failed = sourceRows.filter((row) => row.status === "failed" || row.status === "error").length;
   const empty = sourceRows.filter((row) => row.status === "empty").length;
 
   return (
@@ -262,7 +262,15 @@ export default function OverviewPage() {
   );
   const caseRows = Array.isArray(hitlCases?.cases) ? hitlCases.cases.slice(0, 4) : [];
   const loginRows = Array.isArray(loginTests?.jobs) ? loginTests.jobs.slice(0, 4) : [];
-  const crawlJobRows = Array.isArray(crawlJobs?.jobs) ? crawlJobs.jobs : [];
+  const crawlJobRows = useMemo(() => {
+    const rawJobs = Array.isArray(crawlJobs?.jobs) ? crawlJobs.jobs : [];
+    if (selectedTopic === "gold-price") {
+      return rawJobs.filter((job) => job.topic === "Gold Price");
+    } else if (selectedTopic === "house-price") {
+      return rawJobs.filter((job) => job.topic === "Real Estate");
+    }
+    return rawJobs;
+  }, [crawlJobs, selectedTopic]);
   const houseMedianPrice = useMemo(() => median(records.map((record) => record.price)), [records]);
   const houseMedianPricePerM2 = useMemo(() => median(records.map((record) => record.pricePerM2)), [records]);
 

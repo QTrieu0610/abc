@@ -11,7 +11,11 @@ export function useAutoRefresh(fetcher, intervalMs, enabled = true) {
     fetcherRef.current = fetcher;
   }, [fetcher]);
 
-  const refresh = useCallback(async ({ silent = false, isUserAction = false } = {}) => {
+  const refresh = useCallback(async (options = {}) => {
+    const isEvent = options && (options.nativeEvent || options.preventDefault || typeof options.stopPropagation === 'function');
+    const silent = isEvent ? false : (options.silent ?? false);
+    const isUserAction = isEvent ? true : (options.isUserAction ?? false);
+
     if (!silent) setRefreshing(true);
     setError(null);
     try {

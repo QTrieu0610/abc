@@ -1,0 +1,590 @@
+/* Welcome to Compass.
+ * In this file you should write your main styles. (or centralize your imports)
+ * Import this file using the following HTML or equivalent:
+ * <link href="/stylesheets/screen.css" media="screen, projection" rel="stylesheet" type="text/css" /> */
+@import url(./../../font.css);
+@font-face {
+  font-family: 'icomoon';
+  src: url("../fonts/icomoon.eot?-npzu59");
+  src: url("../fonts/icomoon.eot?#iefix-npzu59") format("embedded-opentype"), url("../fonts/icomoon.woff?-npzu59") format("woff"), url("../fonts/icomoon.ttf?-npzu59") format("truetype"), url("../fonts/icomoon.svg?-npzu59#icomoon") format("svg");
+  font-weight: normal;
+  font-style: normal;
+}
+
+/*mixin
+====================================================*/
+/* line 67, ../sass/store-style.scss */
+.page-store h1.page-title {
+  display: none;
+}
+/* line 68, ../sass/store-style.scss */
+.page-store #container {
+  width: 1260px;
+  font-family: "OpenSansRegular", serif;
+}
+/* line 69, ../sass/store-style.scss */
+.page-store #container .content-middle {
+  width: auto !important;
+}
+/* line 70, ../sass/store-style.scss */
+.page-store #container .content-middle .system_store {
+  margin-top: 25px;
+}
+/* line 72, ../sass/store-style.scss */
+.page-store #container .table_four {
+  width: 100%;
+  display: table;
+  margin: 0 0 45px;
+}
+/* line 73, ../sass/store-style.scss */
+.page-store #container .table_four .num_table {
+  max-width: 25%;
+  padding: 0 10px;
+  display: table-cell;
+  float: left;
+  position: relative;
+}
+/* line 74, ../sass/store-style.scss */
+.page-store #container .table_four .num_table:first-child {
+  padding-left: 0;
+}
+/* line 75, ../sass/store-style.scss */
+.page-store #container .table_four .num_table:last-child {
+  padding-right: 0;
+}
+/* line 76, ../sass/store-style.scss */
+.page-store #container .table_four .num_table h2.title {
+  font-family: "OpenSansSemibold", serif;
+  font-size: 13px;
+  color: #a50119;
+  text-align: center;
+  background: url(../../../images/banggia/title-bg.png) repeat-x 0 0;
+  padding: 8px 0 6px;
+  margin: 0;
+  border: 1px solid #dfdfdf;
+  border-bottom: none;
+  max-width: 290px;
+}
+/* line 77, ../sass/store-style.scss */
+.page-store #container .table_four .num_table tr.even, .page-store #container .table_four .num_table tr.odd, .page-store #container .table_four .num_table tr.even td {
+  background: #fff;
+}
+/* line 78, ../sass/store-style.scss */
+.page-store #container .table_four .num_table .item_table {
+  max-width: 290px;
+  border: 1px solid #dfdfdf;
+  border-bottom: none;
+}
+/* line 79, ../sass/store-style.scss */
+.page-store #container .table_four .num_table .item_table table.sticky-table {
+  width: 100%;
+}
+/* line 81, ../sass/store-style.scss */
+.page-store #container .table_four .num_table .item_table table.sticky-table thead tr th {
+  background: url(../../../images/banggia/store-form-item-bg.png) repeat-x 0 0;
+  padding: 13px 0 10px;
+  font-family: "OpenSansSemibold", serif;
+  font-size: 13px;
+  color: #666666;
+  line-height: 1;
+  border-left: 1px solid #dfdfdf;
+  border-bottom: 1px solid #dfdfdf;
+}
+/* line 82, ../sass/store-style.scss */
+.page-store #container .table_four .num_table .item_table table.sticky-table thead tr th:nth-child(1) {
+  border-left: none;
+  text-indent: 15px;
+  width: 107px;
+}
+/* line 83, ../sass/store-style.scss */
+.page-store #container .table_four .num_table .item_table table.sticky-table thead tr th:nth-child(2), .page-store #container .table_four .num_table .item_table table.sticky-table thead tr th:nth-child(3) {
+  text-align: right;
+  padding-right: 15px;
+  max-width: 90px;
+  width: 74px;
+}
+/* line 85, ../sass/store-style.scss */
+.page-store #container .table_four .num_table .item_table table.sticky-table tbody tr td {
+  font-size: 13px;
+  color: #666666;
+  line-height: 1;
+  border-left: 1px solid #dfdfdf;
+  border-bottom: 1px solid #dfdfdf;
+}
+/* line 86, ../sass/store-style.scss */
+.page-store #container .table_four .num_table .item_table table.sticky-table tbody tr td:nth-child(1) {
+  border-left: none;
+  padding-left: 15px;
+  width: 92px;
+  font-family: "OpenSansRegular", serif;
+}
+/* line 87, ../sass/store-style.scss */
+.page-store #container .table_four .num_table .item_table table.sticky-table tbody tr td:nth-child(2), .page-store #container .table_four .num_table .item_table table.sticky-table tbody tr td:nth-child(3) {
+  text-align: right;
+  max-width: 90px;
+  width: 74px;
+  font-family: "OpenSansSemibold", serif;
+  vertical-align: middle;
+  font-size: 18px;
+  padding: 11px 15px 12px 0;
+}
+/* line 91, ../sass/store-style.scss */
+.page-store #container .table_four .num_table .system_footer {
+  width: 100%;
+  display: block;
+}
+/* line 92, ../sass/store-style.scss */
+.page-store #container .table_four .num_table .system_footer ul {
+  display: table;
+  width: 100%;
+  padding: 0 0 0 7px;
+  margin: 11px 0 0;
+}
+/* line 93, ../sass/store-style.scss */
+.page-store #container .table_four .num_table .system_footer ul li {
+  display: table-cell;
+}
+/* line 94, ../sass/store-style.scss */
+.page-store #container .table_four .num_table .system_footer ul li a {
+  background: url(../../../images/banggia/hethong-banle.png) no-repeat;
+  height: 38px;
+  display: block;
+  width: 82px;
+  text-indent: -9999px;
+}
+/* line 95, ../sass/store-style.scss */
+.page-store #container .table_four .num_table .system_footer ul li.view a {
+  background-position: -14px -3px;
+}
+/* line 96, ../sass/store-style.scss */
+.page-store #container .table_four .num_table .system_footer ul li.edit a {
+  background-position: -108px -3px;
+}
+/* line 97, ../sass/store-style.scss */
+.page-store #container .table_four .num_table .system_footer ul li.delete a {
+  background-position: -201px -3px;
+}
+/* line 105, ../sass/store-style.scss */
+.page-store .system_store ul, .page-store .system_store li {
+  list-style-image: none;
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+/* line 111, ../sass/store-style.scss */
+.page-store .system_store > ul {
+  margin-bottom: 25px;
+}
+/* line 113, ../sass/store-style.scss */
+.page-store .system_store > ul li {
+  display: inline-block;
+  *display: inline;
+  *zoom: 1;
+  margin-right: 5px;
+  font-weight: bold;
+}
+/* line 119, ../sass/store-style.scss */
+.page-store .system_store > ul li a {
+  padding: 6px 15px 7px;
+}
+/* line 122, ../sass/store-style.scss */
+.page-store .system_store > ul li .active-tab {
+  background: url("../../../images/banggia/title-bg.png") repeat-x scroll 0 0 rgba(0, 0, 0, 0);
+  display: inline-block;
+  -webkit-border-radius: 3px;
+  -moz-border-radius: 3px;
+  -ms-border-radius: 3px;
+  -o-border-radius: 3px;
+  border-radius: 3px;
+  border: 1px solid #dfdfdf;
+  color: #000;
+}
+
+/* line 141, ../sass/store-style.scss */
+.page-store,
+.node-type-store.logged-in {
+  font-family: "OpenSansRegular", serif;
+  color: #666666;
+}
+/* line 143, ../sass/store-style.scss */
+.page-store #col-center-middle form .form-item,
+.node-type-store.logged-in #col-center-middle form .form-item {
+  margin: 0;
+}
+/* line 144, ../sass/store-style.scss */
+.page-store #col-center-middle form .form-item input, .page-store #col-center-middle form .form-item select,
+.node-type-store.logged-in #col-center-middle form .form-item input,
+.node-type-store.logged-in #col-center-middle form .form-item select {
+  margin: 4px 0;
+  border: 1px solid #a6a6a6;
+  font-family: "OpenSansRegular", serif;
+  background: url(../../../images/banggia/input-bg.png) repeat-x 0 -1px;
+  color: #0d0d0d;
+}
+/* line 145, ../sass/store-style.scss */
+.page-store #col-center-middle form .form-item select,
+.node-type-store.logged-in #col-center-middle form .form-item select {
+  padding: 3px 0 3px 9px;
+}
+/* line 146, ../sass/store-style.scss */
+.page-store #col-center-middle form .form-item input,
+.node-type-store.logged-in #col-center-middle form .form-item input {
+  padding: 3px 0 5px 9px;
+}
+/* line 148, ../sass/store-style.scss */
+.page-store #col-center-middle form header,
+.node-type-store.logged-in #col-center-middle form header {
+  /*width:($width-page-add-store - 2 );*/
+  width: 940px;
+  margin: 0 auto;
+  border: 1px solid #dfdfdf;
+}
+/* line 149, ../sass/store-style.scss */
+.page-store #col-center-middle form header .form-item,
+.node-type-store.logged-in #col-center-middle form header .form-item {
+  display: table;
+  width: 100%;
+  background: url(../../../images/banggia/store-form-item-bg.png) repeat-x 0 0;
+  margin: 0;
+  border-top: 1px solid #dfdfdf;
+  border-top: 1px solid #dfdfdf;
+}
+/* line 150, ../sass/store-style.scss */
+.page-store #col-center-middle form header .form-item label,
+.node-type-store.logged-in #col-center-middle form header .form-item label {
+  padding-left: 12px;
+  width: 86px;
+}
+/* line 151, ../sass/store-style.scss */
+.page-store #col-center-middle form header .form-item label, .page-store #col-center-middle form header .form-item input, .page-store #col-center-middle form header .form-item select,
+.node-type-store.logged-in #col-center-middle form header .form-item label,
+.node-type-store.logged-in #col-center-middle form header .form-item input,
+.node-type-store.logged-in #col-center-middle form header .form-item select {
+  display: table-cell;
+  vertical-align: middle;
+  font-family: "OpenSansRegular", serif;
+}
+/* line 153, ../sass/store-style.scss */
+.page-store #col-center-middle form header h2.title,
+.node-type-store.logged-in #col-center-middle form header h2.title {
+  font-family: "OpenSansSemibold", serif;
+  font-size: 18px;
+  text-align: center;
+  color: #0d0d0d;
+  line-height: 1;
+  padding: 12px 0;
+  background: url(../../../images/banggia/title-bg.png) repeat-x 0 0;
+  margin: 0;
+}
+/* line 154, ../sass/store-style.scss */
+.page-store #col-center-middle form header h2.title :first-letter,
+.node-type-store.logged-in #col-center-middle form header h2.title :first-letter {
+  text-transform: uppercase;
+}
+/* line 155, ../sass/store-style.scss */
+.page-store #col-center-middle form header .store-name input,
+.node-type-store.logged-in #col-center-middle form header .store-name input {
+  width: 518px;
+}
+/* line 156, ../sass/store-style.scss */
+.page-store #col-center-middle form header .groupAndHotLine,
+.node-type-store.logged-in #col-center-middle form header .groupAndHotLine {
+  display: table;
+  width: 100%;
+}
+/* line 157, ../sass/store-style.scss */
+.page-store #col-center-middle form header .groupAndHotLine input, .page-store #col-center-middle form header .groupAndHotLine select,
+.node-type-store.logged-in #col-center-middle form header .groupAndHotLine input,
+.node-type-store.logged-in #col-center-middle form header .groupAndHotLine select {
+  width: 200px;
+}
+/* line 158, ../sass/store-style.scss */
+.page-store #col-center-middle form header .groupAndHotLine .store_group,
+.node-type-store.logged-in #col-center-middle form header .groupAndHotLine .store_group {
+  display: table-cell;
+  width: 188px;
+  max-width: 188px;
+}
+/* line 159, ../sass/store-style.scss */
+.page-store #col-center-middle form header .groupAndHotLine .store_group label,
+.node-type-store.logged-in #col-center-middle form header .groupAndHotLine .store_group label {
+  width: 86px;
+}
+/* line 160, ../sass/store-style.scss */
+.page-store #col-center-middle form header .groupAndHotLine .store_group select,
+.node-type-store.logged-in #col-center-middle form header .groupAndHotLine .store_group select {
+  width: 150px;
+}
+/* line 162, ../sass/store-style.scss */
+.page-store #col-center-middle form header .groupAndHotLine .store_hotline,
+.node-type-store.logged-in #col-center-middle form header .groupAndHotLine .store_hotline {
+  display: table-cell;
+  width: 355px;
+  max-width: 355px;
+}
+/* line 163, ../sass/store-style.scss */
+.page-store #col-center-middle form header .groupAndHotLine .store_hotline label,
+.node-type-store.logged-in #col-center-middle form header .groupAndHotLine .store_hotline label {
+  width: 76px;
+  padding-left: 7px;
+}
+/* line 164, ../sass/store-style.scss */
+.page-store #col-center-middle form header .groupAndHotLine .store_hotline select,
+.node-type-store.logged-in #col-center-middle form header .groupAndHotLine .store_hotline select {
+  width: 250px;
+}
+/* line 167, ../sass/store-style.scss */
+.page-store #col-center-middle form .content,
+.node-type-store.logged-in #col-center-middle form .content {
+  /*width:$width-page-add-store;*/
+  width: 942px;
+  margin: 0 auto;
+  position: relative;
+}
+/* line 168, ../sass/store-style.scss */
+.page-store #col-center-middle form .content .store_item fieldset,
+.node-type-store.logged-in #col-center-middle form .content .store_item fieldset {
+  background: #fff;
+  border: none;
+  padding: 0;
+  -webkit-margin-start: 0;
+  -webkit-margin-end: 0;
+  -webkit-padding-before: 0;
+  -webkit-padding-start: 0;
+  -webkit-padding-end: 0;
+  -webkit-padding-after: 0;
+  -o-margin-start: 0;
+  -o-margin-end: 0;
+  -o-padding-before: 0;
+  -o-padding-start: 0;
+  -o-padding-end: 0;
+  -o-padding-after: 0;
+  -moz-margin-start: 0;
+  -moz-margin-end: 0;
+  -moz-padding-before: 0;
+  -moz-padding-start: 0;
+  -moz-padding-end: 0;
+  -mos-padding-after: 0;
+}
+/* line 190, ../sass/store-style.scss */
+.page-store #col-center-middle form .content .store_item fieldset legend,
+.node-type-store.logged-in #col-center-middle form .content .store_item fieldset legend {
+  display: none;
+}
+/* line 191, ../sass/store-style.scss */
+.page-store #col-center-middle form .content .store_item fieldset .content-multigroup-edit-table-multiple-columns,
+.node-type-store.logged-in #col-center-middle form .content .store_item fieldset .content-multigroup-edit-table-multiple-columns {
+  border: 1px solid #dfdfdf;
+  border-top: none;
+}
+/* line 192, ../sass/store-style.scss */
+.page-store #col-center-middle form .content .store_item fieldset tr.even, .page-store #col-center-middle form .content .store_item fieldset tr.odd, .page-store #col-center-middle form .content .store_item fieldset tr.even td,
+.node-type-store.logged-in #col-center-middle form .content .store_item fieldset tr.even,
+.node-type-store.logged-in #col-center-middle form .content .store_item fieldset tr.odd,
+.node-type-store.logged-in #col-center-middle form .content .store_item fieldset tr.even td {
+  background: transparent;
+}
+/* line 193, ../sass/store-style.scss */
+.page-store #col-center-middle form .content .store_item fieldset thead th,
+.node-type-store.logged-in #col-center-middle form .content .store_item fieldset thead th {
+  background: transparent;
+  border-bottom: 1px solid #dfdfdf;
+  border-left: 1px solid #dfdfdf;
+  color: #666666;
+  text-indent: 12px;
+  height: 38px;
+  vertical-align: middle;
+}
+/* line 194, ../sass/store-style.scss */
+.page-store #col-center-middle form .content .store_item fieldset tbody tr td,
+.node-type-store.logged-in #col-center-middle form .content .store_item fieldset tbody tr td {
+  border-right: 1px solid #dfdfdf;
+}
+/* line 195, ../sass/store-style.scss */
+.page-store #col-center-middle form .content .store_item fieldset tbody tr td:last-child,
+.node-type-store.logged-in #col-center-middle form .content .store_item fieldset tbody tr td:last-child {
+  border-right: none;
+}
+/* line 196, ../sass/store-style.scss */
+.page-store #col-center-middle form .content .store_item fieldset tbody tr td.content-multiple-drag,
+.node-type-store.logged-in #col-center-middle form .content .store_item fieldset tbody tr td.content-multiple-drag {
+  width: 40px;
+  height: 37px;
+  padding-left: 12px;
+}
+/* line 197, ../sass/store-style.scss */
+.page-store #col-center-middle form .content .store_item fieldset tbody tr td.content-multiple-drag .tabledrag-handle,
+.node-type-store.logged-in #col-center-middle form .content .store_item fieldset tbody tr td.content-multiple-drag .tabledrag-handle {
+  float: none;
+  padding: 0;
+  margin: 0;
+}
+/* line 198, ../sass/store-style.scss */
+.page-store #col-center-middle form .content .store_item fieldset tbody tr td.content-multiple-drag .tabledrag-handle .handle,
+.node-type-store.logged-in #col-center-middle form .content .store_item fieldset tbody tr td.content-multiple-drag .tabledrag-handle .handle {
+  margin-top: 0px;
+}
+/* line 200, ../sass/store-style.scss */
+.page-store #col-center-middle form .content .store_item fieldset tbody tr td.content-multigroup-cell-field-dlieu-ch-1 select,
+.node-type-store.logged-in #col-center-middle form .content .store_item fieldset tbody tr td.content-multigroup-cell-field-dlieu-ch-1 select {
+  width: 137px;
+  margin: 2px 6px;
+}
+/* line 201, ../sass/store-style.scss */
+.page-store #col-center-middle form .content .store_item fieldset tbody tr td.content-multigroup-cell-field-label-ch-1 input,
+.node-type-store.logged-in #col-center-middle form .content .store_item fieldset tbody tr td.content-multigroup-cell-field-label-ch-1 input {
+  width: 157px;
+  margin: 2px 6px;
+}
+/* line 203, ../sass/store-style.scss */
+.page-store #col-center-middle form .content .store_item fieldset tbody tr td.content-multigroup-cell-field-mua-ch-1 input, .page-store #col-center-middle form .content .store_item fieldset tbody tr td.content-multigroup-cell-field-ban-ch-1 input,
+.node-type-store.logged-in #col-center-middle form .content .store_item fieldset tbody tr td.content-multigroup-cell-field-mua-ch-1 input,
+.node-type-store.logged-in #col-center-middle form .content .store_item fieldset tbody tr td.content-multigroup-cell-field-ban-ch-1 input {
+  width: 68px;
+  margin: 2px 6px;
+  background: none;
+  border: none;
+  color: #0d0d0d;
+}
+/* line 204, ../sass/store-style.scss */
+.page-store #col-center-middle form .content .store_item fieldset tbody tr td.content-multiple-remove-cell .content-multiple-remove-button,
+.node-type-store.logged-in #col-center-middle form .content .store_item fieldset tbody tr td.content-multiple-remove-cell .content-multiple-remove-button {
+  width: 32px;
+  margin: 0 3px 2px 2px;
+  background: url(../../../images/banggia/remove-item.png) repeat-x 0 0;
+  border: 1px solid #dfdfdf;
+  border: none;
+  height: 32px;
+  padding: 0;
+}
+/* line 207, ../sass/store-style.scss */
+.page-store #col-center-middle form .content .store_item fieldset .content-add-more,
+.node-type-store.logged-in #col-center-middle form .content .store_item fieldset .content-add-more {
+  position: absolute;
+  bottom: 15px;
+}
+/* line 208, ../sass/store-style.scss */
+.page-store #col-center-middle form .content .store_item fieldset .content-add-more input.form-submit,
+.node-type-store.logged-in #col-center-middle form .content .store_item fieldset .content-add-more input.form-submit {
+  background: transparent;
+  border: none;
+  text-indent: -9999px;
+  width: 120px;
+}
+/* line 210, ../sass/store-style.scss */
+.page-store #col-center-middle form .content .store_control,
+.node-type-store.logged-in #col-center-middle form .content .store_control {
+  display: table;
+  padding: 2px 0;
+}
+/* line 211, ../sass/store-style.scss */
+.page-store #col-center-middle form .content .store_control .store_add, .page-store #col-center-middle form .content .store_control .store_view, .page-store #col-center-middle form .content .store_control .store_save,
+.node-type-store.logged-in #col-center-middle form .content .store_control .store_add,
+.node-type-store.logged-in #col-center-middle form .content .store_control .store_view,
+.node-type-store.logged-in #col-center-middle form .content .store_control .store_save {
+  display: table-cell;
+  vertical-align: middle;
+}
+/* line 212, ../sass/store-style.scss */
+.page-store #col-center-middle form .content .store_control .store_add a, .page-store #col-center-middle form .content .store_control .store_add input, .page-store #col-center-middle form .content .store_control .store_view a, .page-store #col-center-middle form .content .store_control .store_view input, .page-store #col-center-middle form .content .store_control .store_save a, .page-store #col-center-middle form .content .store_control .store_save input,
+.node-type-store.logged-in #col-center-middle form .content .store_control .store_add a,
+.node-type-store.logged-in #col-center-middle form .content .store_control .store_add input,
+.node-type-store.logged-in #col-center-middle form .content .store_control .store_view a,
+.node-type-store.logged-in #col-center-middle form .content .store_control .store_view input,
+.node-type-store.logged-in #col-center-middle form .content .store_control .store_save a,
+.node-type-store.logged-in #col-center-middle form .content .store_control .store_save input {
+  text-indent: -9999px;
+  display: block;
+  border: none;
+}
+/* line 214, ../sass/store-style.scss */
+.page-store #col-center-middle form .content .store_control .store_add,
+.node-type-store.logged-in #col-center-middle form .content .store_control .store_add {
+  max-width: 292px;
+  width: 292px;
+}
+/* line 215, ../sass/store-style.scss */
+.page-store #col-center-middle form .content .store_control .store_add input,
+.node-type-store.logged-in #col-center-middle form .content .store_control .store_add input {
+  background: url(../../../images/banggia/them-giatri.png) no-repeat -4px 0;
+  width: 129px;
+  height: 44px;
+}
+/* line 217, ../sass/store-style.scss */
+.page-store #col-center-middle form .content .store_control .store_view,
+.node-type-store.logged-in #col-center-middle form .content .store_control .store_view {
+  max-width: 175px;
+  width: 175px;
+}
+/* line 218, ../sass/store-style.scss */
+.page-store #col-center-middle form .content .store_control .store_view a,
+.node-type-store.logged-in #col-center-middle form .content .store_control .store_view a {
+  background: url(../../../images/banggia/xem-bang-hien-thi.png) no-repeat 0 0;
+  width: 169px;
+  height: 44px;
+}
+/* line 219, ../sass/store-style.scss */
+.page-store #col-center-middle form .content .store_control .store_save,
+.node-type-store.logged-in #col-center-middle form .content .store_control .store_save {
+  width: 161px;
+}
+/* line 220, ../sass/store-style.scss */
+.page-store #col-center-middle form .content .store_control .store_save input,
+.node-type-store.logged-in #col-center-middle form .content .store_control .store_save input {
+  background: url(../../../images/banggia/tao-bang-hien-thi.png) no-repeat 0 0;
+  width: 161px;
+  height: 37px;
+}
+/* line 222, ../sass/store-style.scss */
+.page-store #col-center-middle form .content #store_path,
+.node-type-store.logged-in #col-center-middle form .content #store_path {
+  position: relative;
+  font-size: 13px;
+  margin-top: 18px;
+  display: inline-block;
+}
+/* line 224, ../sass/store-style.scss */
+.page-store #col-center-middle form .content #store_path .form-item label,
+.node-type-store.logged-in #col-center-middle form .content #store_path .form-item label {
+  color: #666666;
+  font-family: "OpenSansRegular", serif;
+  margin-left: 15px;
+}
+/* line 225, ../sass/store-style.scss */
+.page-store #col-center-middle form .content #store_path .form-item input,
+.node-type-store.logged-in #col-center-middle form .content #store_path .form-item input {
+  font-family: "OpenSansSemibold", serif;
+  font-size: 18px;
+  background: url(../../../images/banggia/path-bg.png) repeat-x 0 -1px;
+  padding: 7px 0 9px 15px;
+  width: 610px;
+}
+/* line 227, ../sass/store-style.scss */
+.page-store #col-center-middle form .content #store_path .copy-path,
+.node-type-store.logged-in #col-center-middle form .content #store_path .copy-path {
+  position: absolute;
+  right: 4px;
+  bottom: 6px;
+  background: url(../../../images/banggia/copy-path-bg.png) repeat-x 0 -1px;
+  text-indent: -9999px;
+  width: 85px;
+  height: 37px;
+  border: none;
+}
+/* line 230, ../sass/store-style.scss */
+.page-store #col-center-middle form .content .content-multigroup-cell-field-chenh-mua input, .page-store #col-center-middle form .content .content-multigroup-cell-field-chenh-ban input,
+.node-type-store.logged-in #col-center-middle form .content .content-multigroup-cell-field-chenh-mua input,
+.node-type-store.logged-in #col-center-middle form .content .content-multigroup-cell-field-chenh-ban input {
+  margin: 2px 6px;
+}
+/* line 234, ../sass/store-style.scss */
+.page-store #col-center-middle form .content .content-multiple-remove-cell,
+.node-type-store.logged-in #col-center-middle form .content .content-multiple-remove-cell {
+  vertical-align: middle;
+}
+/* line 236, ../sass/store-style.scss */
+.page-store #col-center-middle form .content .content-multiple-remove-cell .content-multiple-remove-button,
+.node-type-store.logged-in #col-center-middle form .content .content-multiple-remove-cell .content-multiple-remove-button {
+  margin: 0 !important;
+  float: none;
+}

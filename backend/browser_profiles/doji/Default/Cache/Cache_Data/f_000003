@@ -1,0 +1,1230 @@
+/* put your custom CSS in here */
+.clear {
+  clear: both;
+}
+
+.item-relative {
+  position: relative;
+}
+
+.d-block {
+  display: block;
+}
+
+.left {
+  float: left;
+}
+
+.right {
+  float: right;
+}
+
+.line-height-1 {
+  line-height: 1;
+}
+
+.color-666 {
+  color: #666;
+}
+
+.color-333 {
+  color: #333;
+}
+
+.mark-black {
+  color: #000000 !important;
+}
+
+.mark-green {
+  color: #66CC00 !important;
+}
+
+.mark-red {
+  color:#CC0000 !important;
+}
+
+.t-red {
+  color: #FF0000;
+}
+
+.t-blue {
+  color: #00a2ff;
+}
+
+.t-gray {
+  color: #666666;
+}
+
+.t-left {
+  text-align: left;
+}
+
+.t-center {
+  text-align: center;
+}
+
+.t-right {
+  text-align: right;
+}
+
+.size-11 {
+  font-size: 11px;
+}
+
+.size-12 {
+  font-size: 12px;
+}
+
+.size-13 {
+  font-size: 13px;
+}
+
+.size-14 {
+  font-size: 14px;
+}
+
+.size-15 {
+  font-size: 15px;
+}
+
+.size-16 {
+  font-size: 16px;
+}
+
+.size-17 {
+  font-size: 17px;
+}
+
+.size-18 {
+  font-size: 18px;
+}
+
+.font-style-italic {
+  font-style: italic;
+}
+
+.font-style-normal {
+  font-style: italic;
+}
+
+.bold {
+  font-weight: bold;
+}
+
+.width-485 {
+  width: 485px;
+}
+
+.width-565 {
+  width: 565px;
+}
+
+.width-335 {
+  width: 335px;
+}
+
+.w-25 {
+  width: 25%;
+}
+
+.w-50 {
+  width: 50%;
+}
+
+.w-75 {
+  width: 75%;
+}
+
+.w-100 {
+  width: 100%;
+}
+
+
+.m-t-0 {
+    margin-top: 0px;
+}
+
+.m-r-0 {
+    margin-right: 0px;
+}
+
+.m-b-0 {
+    margin-bottom: 0px;
+}
+
+.m-l-0 {
+    margin-left: 0px;
+}
+
+.m-t-1 {
+    margin-top: 1px;
+}
+
+.m-r-1 {
+    margin-right: 1px;
+}
+
+.m-b-1 {
+    margin-bottom: 1px;
+}
+
+.m-l-1 {
+    margin-left: 1px;
+}
+
+.m-t-2 {
+    margin-top: 2px;
+}
+
+.m-r-2 {
+    margin-right: 2px;
+}
+
+.m-b-2 {
+    margin-bottom: 2px;
+}
+
+.m-l-2 {
+    margin-left: 2px;
+}
+
+.m-t-5 {
+    margin-top: 5px;
+}
+
+.m-r-5 {
+    margin-right: 5px;
+}
+
+.m-b-5 {
+    margin-bottom: 5px;
+}
+
+.m-l-5 {
+    margin-left: 5px;
+}
+
+.m-t-10 {
+    margin-top: 10px;
+}
+
+.m-r-10 {
+    margin-right: 10px;
+}
+
+.m-b-10 {
+    margin-bottom: 10px;
+}
+
+.m-l-10 {
+    margin-left: 10px;
+}
+
+.m-t-15 {
+    margin-top: 15px;
+}
+
+.m-r-15 {
+    margin-right: 15px;
+}
+
+.m-b-15 {
+    margin-bottom: 15px;
+}
+
+.m-l-15 {
+    margin-left: 15px;
+}
+
+.m-t-20 {
+    margin-top: 20px;
+}
+
+.m-r-20 {
+    margin-right: 20px;
+}
+
+.m-b-20 {
+    margin-bottom: 20px;
+}
+
+.m-l-20 {
+    margin-left: 20px;
+}
+
+.m-t-25 {
+    margin-top: 25px;
+}
+
+.m-r-25 {
+    margin-right: 25px;
+}
+
+.m-b-25 {
+    margin-bottom: 25px;
+}
+
+.m-l-25 {
+    margin-left: 25px;
+}
+
+.m-t-30 {
+    margin-top: 30px;
+}
+
+.m-r-30 {
+    margin-right: 30px;
+}
+
+.m-b-30 {
+    margin-bottom: 30px;
+}
+
+.m-l-30 {
+    margin-left: 30px;
+}
+
+.m-t-35 {
+    margin-top: 35px;
+}
+
+.m-r-35 {
+    margin-right: 35px;
+}
+
+.m-b-35 {
+    margin-bottom: 35px;
+}
+
+.m-l-35 {
+    margin-left: 35px;
+}
+
+.m-t-40 {
+    margin-top: 40px;
+}
+
+.m-r-40 {
+    margin-right: 40px;
+}
+
+.m-b-40 {
+    margin-bottom: 40px;
+}
+
+.m-l-40 {
+    margin-left: 40px;
+}
+
+.m-t-45 {
+    margin-top: 45px;
+}
+
+.m-r-45 {
+    margin-right: 45px;
+}
+
+.m-b-45 {
+    margin-bottom: 45px;
+}
+
+.m-l-45 {
+    margin-left: 45px;
+}
+
+.m-t-50 {
+    margin-top: 50px;
+}
+
+.m-r-50 {
+    margin-right: 50px;
+}
+
+.m-b-50 {
+    margin-bottom: 50px;
+}
+
+.m-l-50 {
+    margin-left: 50px;
+}
+
+.p-t-0 {
+    padding-top: 0px;
+}
+
+.p-r-0 {
+    padding-right: 0px;
+}
+
+.p-b-0 {
+    padding-bottom: 0px;
+}
+
+.p-l-0 {
+    padding-left: 0px;
+}
+
+.p-t-1 {
+    padding-top: 1px;
+}
+
+.p-r-1 {
+    padding-right: 1px;
+}
+
+.p-b-1 {
+    padding-bottom: 1px;
+}
+
+.p-l-1 {
+    padding-left: 1px;
+}
+
+.p-t-2 {
+    padding-top: 2px;
+}
+
+.p-r-2 {
+    padding-right: 2px;
+}
+
+.p-b-2 {
+    padding-bottom: 2px;
+}
+
+.p-l-2 {
+    padding-left: 2px;
+}
+
+.p-t-5 {
+    padding-top: 5px;
+}
+
+.p-r-5 {
+    padding-right: 5px;
+}
+
+.p-b-5 {
+    padding-bottom: 5px;
+}
+
+.p-l-5 {
+    padding-left: 5px;
+}
+
+.p-10 {
+  padding: 10px;
+}
+
+.p-t-10 {
+    padding-top: 10px;
+}
+
+.p-r-10 {
+    padding-right: 10px;
+}
+
+.p-b-10 {
+    padding-bottom: 10px;
+}
+
+.p-l-10 {
+    padding-left: 10px;
+}
+
+.p-t-15 {
+    padding-top: 15px;
+}
+
+.p-15 {
+  padding: 15px;
+}
+
+.p-r-15 {
+    padding-right: 15px;
+}
+
+.p-b-15 {
+    padding-bottom: 15px;
+}
+
+.p-l-15 {
+    padding-left: 15px;
+}
+
+.p-t-20 {
+    padding-top: 20px;
+}
+
+.p-r-20 {
+    padding-right: 20px;
+}
+
+.p-b-20 {
+    padding-bottom: 20px;
+}
+
+.p-l-20 {
+    padding-left: 20px;
+}
+
+.p-t-25 {
+    padding-top: 25px;
+}
+
+.p-r-25 {
+    padding-right: 25px;
+}
+
+.p-b-25 {
+    padding-bottom: 25px;
+}
+
+.p-l-25 {
+    padding-left: 25px;
+}
+
+.p-t-30 {
+    padding-top: 30px;
+}
+
+.p-r-30 {
+    padding-right: 30px;
+}
+
+.p-b-30 {
+    padding-bottom: 30px;
+}
+
+.p-l-30 {
+    padding-left: 30px;
+}
+
+.p-t-35 {
+    padding-top: 35px;
+}
+
+.p-r-35 {
+    padding-right: 35px;
+}
+
+.p-b-35 {
+    padding-bottom: 35px;
+}
+
+.p-l-35 {
+    padding-left: 35px;
+}
+
+.p-t-40 {
+    padding-top: 40px;
+}
+
+.p-r-40 {
+    padding-right: 40px;
+}
+
+.p-b-40 {
+    padding-bottom: 40px;
+}
+
+.p-l-40 {
+    padding-left: 40px;
+}
+
+.p-t-45 {
+    padding-top: 45px;
+}
+
+.p-r-45 {
+    padding-right: 45px;
+}
+
+.p-b-45 {
+    padding-bottom: 45px;
+}
+
+.p-l-45 {
+    padding-left: 45px;
+}
+
+.p-t-50 {
+    padding-top: 50px;
+}
+
+.p-r-50 {
+    padding-right: 50px;
+}
+
+.p-b-50 {
+    padding-bottom: 50px;
+}
+
+.p-l-50 {
+    padding-left: 50px;
+}
+
+.price-bg {
+  background: #fff url(images/price-bg.png) repeat-x scroll 0 0;
+}
+
+.block-bg {
+  /*background: #ededed url(images/block-bg.png) repeat-x scroll 0 0;*/
+  background: #ededed url(images/block-background.png) repeat-x scroll 0 0;
+}
+
+.border-gray {
+  border: 1px solid #ccc;
+}
+
+div.help {
+  background-color: #eee;
+  border: 1px solid #ccc;
+}
+
+div.help p {
+  margin: 0;
+}
+
+form div.vertical-tabs ul.vertical-tabs-list li a {
+  color: #666;
+}
+
+form div.vertical-tabs ul.vertical-tabs-list li a strong {
+  font-weight: normal;
+}
+
+#header {
+  display: none;
+}
+
+#col-center-top a.site-logo2 {
+  display: block;
+  position: absolute;
+  left: 15px;
+  top: 10px;
+  z-index: 10;
+}
+
+body.iframe-gold-chart {
+  background: transparent none;
+  margin: 0 !important;
+  padding: 0 !important;
+}
+body.iframe-gold-chart #admin-menu,
+#quicktabs_container_vneconomy_gold_chart .right-subtitlte-1,
+#quicktabs_container_vneconomy_gold_chart .right-subtitlte-2 {
+  display: none;
+}
+#quicktabs-vneconomy_gold_chart {
+  /*background: transparent url(images/chart/tabbg.png) repeat-x scroll 0 0;*/
+  position: relative;
+  width: 290px;
+  padding-bottom: 20px;
+}
+#quicktabs-vneconomy_gold_chart ul.quicktabs-style-nostyle {
+  /*background: url(images/chart/logo.png) no-repeat scroll 275px 10px transparent;*/
+    margin: 0;
+    padding: 0px 0 0 50px;
+    position: absolute;
+    bottom: 7px;
+    z-index: 10;
+}
+#quicktabs-vneconomy_gold_chart ul.quicktabs-style-nostyle li {
+  background: transparent url(images/vncom-line.jpg) no-repeat scroll right 6px;
+  display: block;
+  float: left;
+  margin: 0;
+  padding: 0 5px;
+}
+#quicktabs-vneconomy_gold_chart ul.quicktabs-style-nostyle li.last {
+  background: transparent none;
+}
+#quicktabs-vneconomy_gold_chart ul.quicktabs-style-nostyle li a {
+  color: #454444;
+  font-family: Arial;
+  font-size: 8pt;
+}
+#quicktabs-vneconomy_gold_chart ul.quicktabs-style-nostyle li.active {
+  /*background: #f8f8f8 none;
+  border-top: 1px solid #e51937;*/
+}
+#quicktabs-vneconomy_gold_chart ul.quicktabs-style-nostyle li.active a {
+  color: #000000;
+  font-weight: bold;
+}
+#quicktabs_container_vneconomy_gold_chart .block {
+  margin-bottom: 0;
+}
+#quicktabs_container_vneconomy_gold_chart .right-titlte-1,
+#quicktabs_container_vneconomy_gold_chart .right-titlte-2 {
+  display: none;
+  font-size: 10px;
+  font-weight: bold;
+  position: absolute;
+  right: 0;
+  top: 20px;
+  z-index: 2;
+}
+
+
+/************************************************************
+ * NEWS
+ ************************************************************/
+ .news_entity {
+ 	width:100%;
+ 	padding:25px 0;
+ 	background:#ededed;
+    border-bottom: 1px solid #CCCCCC;
+    margin-bottom: 1px;
+
+ }
+.news_entity.newhost {
+    background: #f5e5e5;
+}
+.news_left {
+ 	width:135px;
+ 	padding-top:5px;
+    overflow: hidden;
+    margin-left: 8px;
+ }
+ .news_left img {
+	width:135px !important;
+ }
+ .news_right {
+ 	width:412px;
+ 	padding-left:10px;
+ }
+
+ .news_source {
+ 	color: #999999;
+ 	font-size: 8pt;
+ }
+
+ .news_title {
+ 	color:#a50119;
+ 	font-size:14pt;
+ 	font-weight:bold;
+ 	margin-bottom:5px;
+ }
+
+ .news_desc {
+ 	color:#666666;
+ 	font-size:10pt;
+ }
+
+ .news_mobile {
+ 	display:none;
+ }
+
+ .paginate {
+ 	margin: 0 auto;
+ }
+ .paginate a, .paginate span{
+ 	margin-right:10px
+ }
+
+ /************************************************************
+ * Dia Diem
+ ************************************************************/
+ .diadiem_title {
+ 	font-size:18pt;
+ 	color:#666666;
+ 	margin-bottom:10px;
+ }
+
+#diadiem-area {
+	height:30px;
+	padding:5px;
+}
+
+.diadiem_ten {
+	font-size:10pt;
+	font-weight:bold;
+	margin:3px 0;
+	cursor:pointer;
+}
+
+.diadiem_info {
+	font-size:10pt;
+	color: #666666;
+}
+
+.diadiem_cuahang {
+	margin:20px 0;
+}
+
+.diadiem_addr {
+	display:none;
+}
+
+#map-canvas {
+	height:500px;
+
+}
+.edit_node {
+    float: right;
+}
+.edit_node a {
+    font-size: 12px;
+    color: #999999;
+}
+.edit_node a:hover {
+    color: red;
+}
+.showmap tbody {
+    border: 0;
+}
+
+.node-type-news .field-label {
+    display: none;
+}
+.node-type-news .field-field-image {
+    text-align: center;
+    display: none;
+}
+.node-type-news h3 {
+    font-weight: normal;
+}
+.node-type-news h1 {
+    margin-bottom: 0;
+    padding-bottom: 0;
+    margin-top: 15px;
+    font-size: 20px;
+}
+.node-type-news .field-field-teaser {
+    display: none;
+}
+.node-type-news img {max-width: 550px;height: auto;}
+.node-type-news h3 {font-style: italic;}
+.new-node {
+    font-style: italic;
+    color: #999;
+}
+body#tinymce {
+    background: white;
+}
+.hot {float: left;margin-right: 6px;}
+/*#giavangtrongnuoc .admin #doji-gold-price-short-form {
+    float: left;
+    width: 920px;
+}
+#giavangtrongnuoc .admin table.goldprice-view thead th {
+    text-align: left;
+}*/
+
+.left .news_entity .right .news_source  {
+    float: left;
+}
+.news_desktop {
+    display: block;
+    clear: both;
+}
+.ban_destop {
+    width: 970px;
+    margin: 0 auto;
+}
+.ban_mobile {
+   display: none;
+}
+#col-center-top img.icon20 {
+    display: block;
+    position: absolute;
+    left: 110px;
+    top: 10px;
+    z-index: 10;
+}
+div.tabs ul.primary {
+    left: 170px;
+}
+
+/* */
+
+#popup_window,.popup-content,h2.popup-title{
+ display: none;
+}
+/* hide field Language settings and Number format settings in page user/edit
+*/
+.logged-in.page-user #user-profile-form div fieldset.collapsible,
+.logged-in.page-user #user-profile-form div fieldset:nth-of-type(2),
+.logged-in.page-user #user-profile-form div fieldset .form-item .description{ display: none;}
+@media screen and (max-width: 750px) {
+    .logged-in.page-user h1.page-title{margin-left: 10px;padding-top: 25px;padding-bottom: 3px;}
+    .logged-in.page-user #user-profile-form div fieldset input.form-text{width: 96.5%; padding: 6px;}
+    .logged-in.page-user #user-profile-form div #edit-submit {margin: 0 auto 15px auto; display: block;}
+    .logged-in.page-user #user-profile-form div #edit-pass-wrapper {margin-top:2.5rem;}
+    .logged-in.page-user #user-profile-form div fieldset .form-item.password-parent,
+    .logged-in.page-user #user-profile-form div fieldset .form-item.confirm-parent{margin: 0}
+}
+
+/*===============================================================*/
+/*update design 1.5.5 . style by TaoLe hopthucualetao@gmail.com*/
+/*===========================================================*/
+
+/*for new 'menu left'*/
+.logged-in.page-doji .googlemap {width: 900px}
+.logged-in.admin-menu #col-center-top{ padding-top: 48px}
+.logged-in.admin-menu #col-center-bottom{border-top:1px solid #fff}
+.logged-in.admin-menu .left_menu_main{ position: absolute; top: 0; left: 0;border-top-left-radius: 10px;
+    background-image: -webkit-gradient(linear, 50% 0%, 50% 100%, color-stop(0%, #ffcc00), color-stop(100%, #fffa00));
+    background: -webkit-linear-gradient(#fffa00,#ffcc00); /* For Safari 5.1 to 6.0 */
+    background: -o-linear-gradient(#fffa00,#ffcc00); /* For Opera 11.1 to 12.0 */
+    background: -moz-linear-gradient(#fffa00,#ffcc00); /* For Firefox 3.6 to 15 */
+    background: linear-gradient(#fffa00,#ffcc00); /* Standard syntax */
+}
+.logged-in.page-doji .left_menu_main ul{display: table;margin: 0;padding: 0;}
+.logged-in.page-doji .left_menu_main ul li{ list-style: none ; display: table-cell; background: url("images/left-menu-li-bg.png")right top no-repeat;padding: 14px 14px 12px 12px;}
+.logged-in.page-doji .left_menu_main ul li a {display:block;background: url("images/left-menu-bg.png") no-repeat 0 0; height: 21px; width: 20px;}
+.logged-in.page-doji .left_menu_main ul li.hide{width: 98px;}
+.logged-in.page-doji .left_menu_main ul li.hide a{ background: none}
+.logged-in.page-doji .left_menu_main ul li.biedo a{background-position: -48px 0;}
+.logged-in.page-doji .left_menu_main ul li.tintuc a{background-position: -97px 0;}
+.logged-in.page-doji .left_menu_main ul li.diadiem a{background-position: -146px 0;}
+.logged-in.page-doji .tabs ul.primary{right: 0;width: 835px;top: 9px;left: auto}
+.logged-in.page-doji #col-center-top #col-center-bottom .tabs ul.primary li{position: relative;margin: 0}
+.logged-in.page-doji #col-center-top #col-center-bottom .tabs ul.primary li.active:after{ background: url("images/menu-arrow.png") -3px -2px no-repeat; height: 15px; width: 22px; content: ""; display: block; position: absolute; bottom: -18px; z-index: 100;margin-left: -10px;left: 50%;}
+.logged-in.page-doji #col-center-top #col-center-bottom .tabs ul.primary li a{ color: #0d0d0d; background: transparent;border: none; font-size: 12px;padding: 0 10px}
+.logged-in.page-doji #col-center-top #col-center-bottom .tabs ul.primary li a.active,
+.logged-in.page-doji #col-center-top #col-center-bottom .tabs ul.primary li a:hover{ color: #a50119; background: transparent; border: none}
+
+.logged-in.page-doji #col-center-top #col-center-bottom ul.secondary{margin: 0 -20px; border-bottom: 2px solid #e5e5e5; text-align: right}
+.logged-in.page-doji #col-center-top #col-center-bottom ul.secondary li{ border: none;display: inline-block; padding: 0;/*margin: 0 20px*/margin: 0 15px;}
+.logged-in.page-doji #col-center-top #col-center-bottom ul.secondary li:last-child{/*margin-right: 155px*/}
+.logged-in.page-doji #col-center-top #col-center-bottom ul.secondary li a{font-size:12px;border: none;background: none;text-transform: uppercase;position: relative;bottom: -2px;display: inline-block; color: #888;height: 22px; }
+.logged-in.page-doji #col-center-top #col-center-bottom ul.secondary li a.active{white-space: nowrap;border-bottom: 2px solid #e51937;background: none; color: #333; }
+
+/*fix css page not-logged-in*/
+.page-user .left_menu_main,
+.page-node .left_menu_main,
+.not-logged-in .left_menu_main {display: none}
+.not-logged-in  #bang-gia-theo-vung-mien{ margin: 0 -10px}
+.not-logged-in  #bang-gia-theo-vung-mien div.first,
+.not-logged-in  #bang-gia-theo-vung-mien div.last{width: 316px;float: left;}
+.not-logged-in .googlemap {width: 600px}
+
+/*.not-logged-in .col-center-bottom #giavangtrongnuoc{ width: 565px}*/
+
+/*thay do do rong cua page tu 970 thanh 1260*/
+
+.page-doji.front.logged-in #container{ width: 1260px; padding-left: 0;padding-right: 0;}
+.page-doji.front.logged-in .content_home #giavangtrongnuoc { padding:0;border-bottom: none;}
+.page-doji.front.logged-in .content_home .content-middle{ float: left; width: 910px}
+.page-doji.front.logged-in .content_home .col-right { float: right; width: 290px; margin-left: 20px;margin-top: 10px;}
+.page-doji.front.logged-in #gv-left {background: transparent; width: 100%}
+.page-doji.front.logged-in .ban_destop,
+.page-doji.logged-in .ban_destop{display: none;}
+
+
+.page-doji.logged-in #container{ width: 1260px; padding-left: 0;padding-right: 0;}
+.page-doji.logged-in #doji-charts{ width: 930px; margin: 0 auto}
+.page-doji.logged-in .width-565{width: 830px}
+.page-doji.logged-in .width-565 .news_entity .news_right{ width: 665px}
+
+/*lich su thay doi gia vang*/
+#block-doji_area-history_node {}
+/*lich su thay doi gia vang*/
+
+
+/*page admin quan tri tung vung*/
+.ad_quantri #block-block-1{ float: left; width: 443px}
+.ad_quantri #block-block-3{ border: none;margin-top: 20px;width: 443px;float: right}
+.ad_quantri #block-block-3 .table{ font-family: OpenSansSemibold; font-size: 13px}
+.ad_quantri #block-block-3 .table .table-cell{color: #0d0d0d;padding:9px 12px;text-align: center}
+.ad_quantri #block-block-3 .table .table-cell{}
+.ad_quantri #block-block-3 .table .table-cell.lable{ color: #a50119; width: 155px}
+.ad_quantri #block-block-3 .table .table-cell.active a{ color: #a50119; }
+.ad_quantri #block-block-3 .table .table-cell.active{ border-bottom: 3px solid #a50119; }
+
+
+
+.ad_quantri #bang-gia-theo-vung-mien .goldprice-view tr td.first,
+.ad_quantri #bang-gia-theo-vung-mien .goldprice-view tr th.first{ width: 153px }
+.ad_quantri #bang-gia-theo-vung-mien .goldprice-view tr th{height: 39 }
+.ad_quantri #bang-gia-theo-vung-mien .hn .clear-block,
+.ad_quantri #bang-gia-theo-vung-mien .dn .clear-block,
+.ad_quantri #bang-gia-theo-vung-mien .hcm .clear-block{padding: 0}
+.ad_quantri #bang-gia-theo-vung-mien div.first,
+.ad_quantri #bang-gia-theo-vung-mien div.last{width: 100%;}
+.ad_quantri #bang-gia-theo-vung-mien{ }
+#noitce-message { padding: 12px 15px; color: #fff; max-width: 245px; opacity: .8; display: none;z-index: 10;position: absolute;
+    background: -webkit-linear-gradient(#0c0c0c, #3b3b3b); /* For Safari 5.1 to 6.0 */
+    background: -o-linear-gradient(#0c0c0c, #3b3b3b); /* For Opera 11.1 to 12.0 */
+    background: -moz-linear-gradient(#0c0c0c, #3b3b3b); /* For Firefox 3.6 to 15 */
+    background: linear-gradient(#0c0c0c, #3b3b3b); /* Standard syntax */
+    box-shadow: 3px 3px 5px 0px rgba(0, 0, 0, 0.3);
+}
+#noitce-message ul{ margin: 0; padding-bottom: 38px}
+#noitce-message h2{font-weight: bold;color: #fff; font-family: Open Sans; font-size: 13px; list-style: none;margin: 0; padding: 0}
+#noitce-message ul li { color: #fff; font-family: Open Sans; font-weight: normal; font-size: 13px; list-style: none;}
+
+#noitce-message ul li.error {list-style: inherit;list-style-type: square;list-style-position: inside;}
+#noitce-message .top-popover{position: relative;}
+#noitce-message .top-popover .arrow {text-align: left;white-space: normal;position: absolute;display: block; width: 0;height: 0;border-color: transparent; border-style: solid; border-width: 10px;content: " "; top: -5px;right: -25px; margin-top: 25px; border-right-width: 0;border-left-color: #1d1d1d;}
+#noitce-message .buttons {position: absolute;right: 15px; bottom: 12px;}
+#noitce-message .buttons input.form-submit {float: right;margin-right: 3px;background:#ccc;border: none;color: #333; padding:6px 11px; width: auto; border-radius: 5px;line-height: 1;font-size: 12px; height: auto;}
+
+
+/*  */
+.logged-in #giavangtrongnuoc .admin #doji-gold-price-short-form {font-size: 13px; width: 910px;}
+#doji-gold-price-short-form table.goldprice-view{ width: 443px;border: none;border-left: none;position: relative;display: inline-block;margin: 20px auto 19px; vertical-align: top; padding-bottom: 48px; float: left}
+/*#doji-gold-price-short-form table.goldprice-view:nth-child(2n){ margin-left: 20px;} */
+#doji-gold-price-short-form table.goldprice-view thead.tableHeader-processed th{font-family: OpenSansSemibold;padding: 12px 34px 11px;font-size: 13px;height: auto;color: #666;line-height: 1;border-bottom-color: #a6a6a6}
+#doji-gold-price-short-form table.goldprice-view thead.tableHeader-processed th.first{color: #a50119; text-align: left;padding: 6px 16px;border-bottom-color: #dfdfdf}
+#doji-gold-price-short-form table.goldprice-view thead th.first { padding: 6px 16px; height: auto; background: none; border-left: none; border-top:none;}
+
+#doji-gold-price-short-form table.goldprice-view tbody tr{padding: 0}
+#doji-gold-price-short-form table.goldprice-view tbody tr td { padding: 0; background: transparent; width: 143px; border-color: #a6a6a6;}
+#doji-gold-price-short-form table.goldprice-view tbody tr td.first{ padding: 0 15px; border-color: #dfdfdf; border-right-color: #a6a6a6}
+#doji-gold-price-short-form table.goldprice-view tbody tr td.first span{ font-size: 13px; color: #666;}
+#doji-gold-price-short-form table.goldprice-view tbody tr td.first span.sub-title{ display: none;}
+#doji-gold-price-short-form table.goldprice-view tbody tr td.goldprice-td .item-relative {display: table}
+#doji-gold-price-short-form table.goldprice-view tbody tr td.goldprice-td .item-relative .form-item,
+#doji-gold-price-short-form table.goldprice-view tbody tr td.goldprice-td .item-relative .btn-updown{ float: none; display: table-cell; vertical-align: middle;width: 26px;}
+#doji-gold-price-short-form table.goldprice-view tbody tr td.goldprice-td .item-relative .btn-updown span{background: transparent url("images/bt-up-down.png") no-repeat scroll -4px -5px;width: 25px; height: 20px;border: 1px solid #a6a6a6;border-top: none;border-right: none;}
+#doji-gold-price-short-form table.goldprice-view tbody tr td.goldprice-td .item-relative .btn-updown span.btn-down{background-position: -4px -23px; border-bottom: none;}
+#doji-gold-price-short-form table.goldprice-view tbody tr td.goldprice-td .item-relative input{font-family: OpenSansSemibold; font-size: 18px;color: #0d0d0d;border: none;padding:8px 8px 7px; line-height: 1.5; margin: 0;width: 111px;height: 26px;text-align: right;}
+#doji-gold-price-short-form table.goldprice-view tbody tr:last-child td.first{border-right-color:#DFDFDF;}
+#doji-gold-price-short-form table.goldprice-view tbody tr:last-child td{border-color:#DFDFDF;}
+#doji-gold-price-short-form table.goldprice-view tbody tr:last-child .update-time{display:inline-block;padding-right:5px;}
+#doji-gold-price-short-form table.goldprice-view tbody tr td.goldprice-td .item-relative input.error {
+    background: -webkit-linear-gradient(#ffe9e6, #fff); /* For Safari 5.1 to 6.0 */
+    background: -o-linear-gradient(#ffe9e6, #fff); /* For Opera 11.1 to 12.0 */
+    background: -moz-linear-gradient(#ffe9e6, #fff); /* For Firefox 3.6 to 15 */
+    background: linear-gradient(#ffe9e6, #fff); /* Standard syntax */
+    border: 1px solid #a50119;color: #a50119;height: 25px;padding:8px 7px 6px;
+}
+#doji-gold-price-short-form table.goldprice-view tbody tr td.goldprice-td.goldprice-td-1 .item-relative input{width: 102px}
+
+#doji-gold-price-short-form table.goldprice-view tbody tr td.form-footer-container{ border: none; padding-top: 8px;position: absolute; width: 100%; bottom: 0; left: 0;}
+#doji-gold-price-short-form table.goldprice-view tr td a.btn-ngunggiaodich {background: transparent url("images/ngung-giao-dich.png") no-repeat scroll 0 0;width: 125px;height: 20px;margin-top: 12px; margin-left: 10px}
+#doji-gold-price-short-form table.goldprice-view tr td #show-messages{width: 150px; margin-right: 16px;}
+#doji-gold-price-short-form table.goldprice-view tr td input.form-submit {background: transparent url("images/cap-nhat.png") no-repeat scroll 0 0;width: 140px;height: 40px;margin: 0;border: none}
+#doji-gold-price-short-form table.goldprice-view tr td #messages {float: right;}
+
+#doji-gold-price-short-form table.goldprice-view tr td div.error {
+    color: #8A1F11;
+    float: right;
+    font-size: 12px;
+    font-weight: normal;
+    margin: 0 7px 0 0;
+    padding: 7px;
+}
+/*#doji-gold-price-short-form input.price-bg {
+    border: 1px solid #CCCCCC;
+    display: block;
+    float: left;
+    font-weight: bold;
+    padding: 8px;
+    text-align: right;
+    width: 90px;
+}*/
+#doji-gold-price-short-form .form-ngunggiaodich input.price-bg {
+    color: #999;
+}
+
+
+#doji-gold-price-short-form .form-item {
+    float: left;
+}
+.table{display: table;width: 100%}
+.table-cell{display: table-cell}
+
+
+/*block thiet lap gia nhanh*/
+#block-doji_area-setting_value_vung h3{ font-family: OpenSansSemibold; font-size: 13px; color: #a50119;line-height: 1; margin: 0 0 10px;padding-left: 12px}
+#block-doji_area-setting_value_vung table{ border: 1px solid #dfdfdf; border-bottom: none;}
+
+.page-doji.ad_class #block-doji_area-setting_value_vung table {border-top: none;}
+.page-doji.ad_class #block-doji_area-setting_value_vung .content{width: 100%;height: 120px;}
+#block-doji_area-setting_value_vung > .content{ width: 440px}
+#block-doji_area-setting_value_vung > .content table{width:100% }
+
+.node-type-biendo form fieldset table .content-multigroup-cell-field-thamchieu,
+.node-type-biendo form fieldset table .content-multigroup-cell-field-chungloai,{display: none}
+#block-doji_area-setting_value_vung .content table tbody{border-top: none;}
+
+#block-doji_area-setting_value_vung table tr td{ padding: 1px 0 2px 7px;}
+#block-doji_area-setting_value_vung table tr.odd td{background-color:#F5F5F5 }
+#block-doji_area-setting_value_vung table tr.even td{background-color: #fff}
+#block-doji_area-setting_value_vung table tr th,
+#block-doji_area-setting_value_vung table tr td{ font-family:OpenSansSemibold;font-size: 13px; color: #666;padding: 8px 0 8px 10px;background-color: #fff}
+
+#block-doji_area-setting_value_vung .cloneFormHeader{border: 1px solid #dfdfdf;width: 908px;}
+#block-doji_area-setting_value_vung .cloneFormHeader .table-cell{ padding: 11px 0 10px 10px;font-family:OpenSansSemibold;font-size: 13px; color: #666;background-color: #fff}
+
+
+#block-doji_area-setting_value_vung .content table tr td input,
+#block-doji_area-setting_value_vung .content table tr td.ctr .save,
+#block-doji_area-setting_value_vung .content table tr td.ctr .huy{ border: none; background: transparent; outline: none; font-family:OpenSansSemibold; font-size: 13px; color: #666}
+#block-doji_area-setting_value_vung .content table tr td.ctr .save{margin-left: 3px;}
+#block-doji_area-setting_value_vung .content table tr td.ctr .huy{padding: 0 12px;margin-left: 12px;border-left: 2px #ccc solid;height: 14px;display: inline-block;line-height: 1;}
+
+
+#block-doji_area-setting_value_vung .content table .chung_loai,
+#block-doji_area-setting_value_vung .content table .tham_chieu,
+.table-cell.chungloai,
+.table-cell.thamchieu{ width: 155px}
+
+#block-doji_area-setting_value_vung .content table .gia,
+#block-doji_area-setting_value_vung .content table .gia_thamchieu,
+.table-cell.gia{text-align: left;width:80px; font-size: 16px; color: #333;}
+
+#block-doji_area-setting_value_vung .content table .bdo,
+.table-cell.biendo{ font-size: 16px; color: #333;width: 136px;}
+
+#block-doji_area-setting_value_vung .content table .input_dk,
+#block-doji_area-setting_value_vung .content table .dk_edit{width:65px; font-family:OpenSansSemibold;font-size: 18px; padding: 8px 0 5px 7px; margin: 0;background:#F5F5F5 url("images/bien-do.png")  4px -4px no-repeat;text-align: center}
+.table-cell.dieukien{width: 65px}
+#block-doji_area-setting_value_vung .content table .dk_edit {padding:0}
+#block-doji_area-setting_value_vung .content table .dk_edit input{padding: 2px 0 0 0;width: 30px;margin-left: 8px;text-align: center;font-family: OpenSansSemibold;font-size: 18px;}
+#block-doji_area-setting_value_vung .content table .even .input_dk,
+#block-doji_area-setting_value_vung .content table .even .dk_edit{background:#fff url("images/bien-do.png")  4px -4px no-repeat;}
+
+#block-doji_area-setting_value_vung .content table .ctr,
+.table-cell.chinhsua{width: 145px}
+#block-doji_area-setting_value_vung .content table .ctr p{margin: 0}
+#block-doji_area-setting_value_vung .content table .ctr .sua, #block-doji_area-setting_value_vung .content table .ctr .save, #block-doji_area-setting_value_vung .content table .ctr .huy{cursor: pointer;}
+
+
+
+/* block L?ch s? thay ??i*/
+.col-right .block-doji_area h3{font-family: OpenSansSemibold; color: #333; font-size: 13px; padding-left: 15px;margin-bottom: 8px;margin-top: 21px;}
+.col-right .block-doji_area .content{border: 1px solid #b0b0b0;}
+.col-right .block-doji_area ul{padding: 0; margin: 0}
+.col-right .block-doji_area ul li.table{width:258px; position:relative;list-style: none;display: table;font-family: "OpenSansRegular"; border-bottom: 1px solid #b0b0b0;padding: 5px 15px 4px;background-color: #d1d1d1}
+.col-right .block-doji_area ul li.table:last-child{border-bottom: none;}
+.col-right .block-doji_area ul li.table .table-left{display: table-cell;font-size: 13px;color: #333;vertical-align: middle;padding-right: 25px;}
+.col-right .block-doji_area ul li.table .table-left .row{display: list-item;    line-height: 1;    list-style-position: inside;    list-style-image: url("images/fd.png");    margin: 0 0 10px;}
+.col-right .block-doji_area ul li.table .table-left .row:last-child{margin-bottom: 0}
+.col-right .block-doji_area ul li.table .table-right{display: table-cell; font-size: 11px; color: #999; vertical-align: middle;}
+.col-right .block-doji_area ul li.table .table-right .status1,
+.col-right .block-doji_area ul li.table .table-right .status2{ color: #000}
+
+#block-doji_area-history_node .content{height: 290px;}
+.col-right .block-doji_area ul li.table span.lable {display: block;height: 99%;left: 0;position: absolute;top: 0;width: 5px;}
+.col-right .block-doji_area ul li.canhbao0 span.lable{background-color: #f7941d; display: block;height: 99%;left: 0;position: absolute;top: 0;width: 5px;}
+.col-right .block-doji_area ul li.canhbao1 span.lable{ background-color: #008000;display: block;height: 99.5%;left: 0;position: absolute;top: 0;width: 5px;}
+.col-right .block-doji_area ul li.canhbao2 span.lable{ background-color: #ed0000;display: block;height: 99.5%;left: 0;position: absolute;top: 0;width: 5px;}
+.col-right .block-doji_area ul li.wt-cb{border: none}
+.col-right .block-doji_area ul li.wt-cb .row{padding: 15px 0 10px 15px;}
+
+
+#block-doji_area-canhbao_ajax .content { position: relative;height: 245px;border: 1px solid #b0b0b0;background-color: #d1d1d1;}
+#block-doji_area-canhbao_ajax .content .nd_main li {position: relative}
+/*##block-doji_area-canhbao_ajax .content .nd_main li .table-right {padding-left: 30px;}*/
+#block-doji_area-canhbao_ajax .content .nd_main li .popup{display: none;}
+
+#block-doji_area-history_node .content ul li.table .table-right{width: 70px}
+
+
+/*popover canh bao gia vang phan sidebar*/
+#popup{display: block;position: absolute;margin-left: -15px ;width:290px; color: #fff; opacity: .95;z-index: 990;
+    background: -webkit-linear-gradient(#0c0c0c, #3b3b3b); /* For Safari 5.1 to 6.0 */
+    background: -o-linear-gradient(#0c0c0c, #3b3b3b); /* For Opera 11.1 to 12.0 */
+    background: -moz-linear-gradient(#0c0c0c, #3b3b3b); /* For Firefox 3.6 to 15 */
+    background: linear-gradient(#0c0c0c, #3b3b3b); /* Standard syntax */
+    box-shadow: 3px 3px 5px 0px rgba(0, 0, 0, 0.3);}
+#block-doji_area-canhbao_ajax .content ul li.active-click.top .popup{ top: 47px;}
+#block-doji_area-canhbao_ajax .content ul li.active-click.bottom .popup{ bottom: 47px;}
+
+.canhBaoTop{}
+
+#popup .top-popover .arrow {left: 25px; text-align: left;white-space: normal;position: absolute;display: block; width: 0;height: 0;border-color: transparent; border-style: solid; border-width: 7px;content: " "; right: -25px;}
+#popup .top-popover .arrow.arrow-top{top: -14px; border-bottom-color: #000;}
+#popup .top-popover .arrow.arrow-bottom{bottom: -14px;border-top-color: #444;}
+#popup .hienthi_rowpoup { font-family: OpenSansRegular; font-size: 13px;}
+#popup .hienthi_rowpoup .title{ font-family: OpenSansSemibold; margin-top: 15px}
+#popup .hienthi_rowpoup .row_popup:first-child .title{margin-top: 0}
+#popup .content-popover{ padding: 15px; }
+#popup .content-popover .nd_loi{font-weight:bold;}
+#popup .ctr{ clear: both; padding: 0 10px 10px}
+#popup .ctr a{height: 25px; width: 96px ;background:url("images/yes-no.png") 0 0 no-repeat;border: none;display: inline-block;text-indent: -9999px;}
+#popup .ctr a.tu-choi{background-position: -165px 0;}
+#popup .ctr .popUpLoad {color: #ed0000; text-indent: 10px; display: block; }
+/*popover canh bao gia vang phan sidebar*/
+
+
+
+
+.nd_show_popup{ width: 100%;height: 200px;overflow: auto;}
+.jspContainer{overflow: hidden;position: relative;}
+.jspScrollable:focus{outline: none}
+.jspPane{position: absolute; width: 100% !important;}
+.jspVerticalBar{position: absolute;top: 0;right: 0;width: 7px; height: 100%; background: transparent;}
+.jspHorizontalBar{position: absolute;bottom: 0;left: 0;width: 100%;height: 16px;background: transparent;}
+.jspCap{display: none;}
+.jspHorizontalBar .jspCap{float: left;}
+.jspTrack{position: relative;background-color: #a8a8a8;opacity: .9;left: -1px}
+.jspDrag{background: #000;opacity:.6;position: relative; top: 0;left: 0;cursor: pointer;}
+.jspHorizontalBar .jspTrack,
+.jspHorizontalBar .jspDrag{float: left; height: 100%;}
+.jspArrow{background: #50506d;text-indent: -20000px; display: block;cursor: pointer; padding: 0; margin: 0;}
+.jspArrow.jspDisabled{cursor: default;background: #80808d;}
+.jspVerticalBar .jspArrow{ height: 16px;}
+.jspHorizontalBar .jspArrow{ width: 16px; float: left; height: 100%;}
+.jspVerticalBar .jspArrow:focus{ outline: none;}
+.jspCorner{ background: #eeeef4; float: left; height: 100%;}
+
+/* Yuk! CSS Hack for IE6 3 pixel bug :( */
+* html .jspCorner{ margin: 0 -3px 0 0;}
+
+/*page canh bao  '/doji/thongke/canhbao' */
+.page_static{ clear: both;content: '';}
+.page_static .page-title{ margin-top: .5em}
+.page_static .static_left{ float: left; width:910px }
+.page_static .static_left .sticky-table{ width: 100%}
+.page_static .static_left .sticky-table tr td,
+.page_static .static_left .sticky-table tr th{ font-family: OpenSansSemibold; font-size: 13px}
+.page_static .static_left #statistics-print{ float: left; width: 232px; margin-top: 25px}
+.page_static .static_left #statistics-print a{background: url("images/luu-in-thongke.png") 0 0 no-repeat;display: block;height: 40px;width: 107px; text-indent: -9999px;}
+.page_static .static_left #statistics-print a.print{background-position: -124px 0;}
+
+
+.page_static .static_right { float: right;width: 290px; }
+.page_static .static_right h3{margin-top: 0; font-size: 18px; font-family: OpenSansSemibold; color: #0d0d0d; display: block;text-align: center;border: 1px solid #dfdfdf; padding: 11px 0; margin-bottom: 0;
+         background: -webkit-linear-gradient(#eee, #f6f6f6); /* For Safari 5.1 to 6.0 */
+         background: -o-linear-gradient(#eee, #f6f6f6); /* For Opera 11.1 to 12.0 */
+         background: -moz-linear-gradient(#eee, #f6f6f6); /* For Firefox 3.6 to 15 */
+         background: linear-gradient(#eee, #f6f6f6);/* Standard syntax */
+}
+.page_static .static_right form .form-submit{background: url("images/xem-thong-ke.png") 0 0 no-repeat;display: block;height: 38px; width: 138px; text-indent:-9999px;border: none; margin: 0;padding: 0 }
+.page_static .static_right form #edit-id-wrapper{display: none}
+.page_static .static_right form .combine{display: table ;border-left: 1px solid #dfdfdf;border-right: 1px solid #dfdfdf;padding: 1.5em 12px;background: #fff}
+.page_static .static_right form .container-inline-date{ display: table-cell; width: 145px}
+.page_static .static_right form .container-inline-date .form-item{ display: table}
+.page_static .static_right form .container-inline-date .form-item .form-item,
+.page_static .static_right form .container-inline-date .form-item  label{display: table-cell; vertical-align: middle}
+.page_static .static_right form .container-inline-date .form-item .description{display: none}
+
+.page_static .static_right form .container-inline-date input{ background: url("images/input-canhbao.png")0 -3px no-repeat; font-family: OpenSansSemibold; font-size: 13px; color: #888;border: none;border-right: 1px solid #888;width: 75px;padding: 5px 9px 5px 15px;}
+.page_static .static_right form .container-inline-date input:focus,
+.page_static .static_right form #edit-khuvuc-wrapper select:focus{outline:none}
+
+.page_static .static_right form #edit-khuvuc-wrapper{display: table;padding: 1.5em 12px; margin-top: 0;border: 1px solid #dfdfdf;margin-bottom: 20px; background: #fff}
+.page_static .static_right form #edit-khuvuc-wrapper label{display: table-cell ; width: 77px}
+.page_static .static_right form #edit-khuvuc-wrapper select{ background: url("images/input-canhbao.png")-3px -2px no-repeat;width: 197px;height: 30px;border: none;display: table-cell; font-family: OpenSansSemibold; font-size: 13px; color: #666;padding-left: 8px;}
+
+.lable_cho {background-color: #f7941d;
+    display: block;
+    height: 99%;
+    left: 0;
+    position: absolute;
+    top: 0;
+    width: 5px;}
+.lable_da {background-color: #008000;
+    display: block;
+    height: 99%;
+    left: 0;
+    position: absolute;
+    top: 0;
+    width: 5px;}
+.lable_tu {background-color: red;
+    display: block;
+    height: 99%;
+    left: 0;
+    position: absolute;
+    top: 0;
+    width: 5px;}
+.the_firt {height: 245px;overflow: hidden;}
+#group-setting-hn-items ,#group-setting-dn-items,#group-setting-hcm-items {width: 30%;float: left;}
+#group-setting-dn-items {margin: 0 20px;}

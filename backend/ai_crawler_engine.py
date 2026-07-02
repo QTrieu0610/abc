@@ -50,54 +50,147 @@ def _load_env_file():
 _load_env_file()
 
 
+def html_to_clean_markdown(html_content: str) -> str:
+    """
+    Convert HTML content to clean, structured Markdown.
+    Strips scripts, styles, navs, headers, footers, forms and returns
+    headings, tables, lists, and bold/italic elements as Markdown.
+    """
+    if not html_content:
+        return ""
+    from bs4 import Comment
+    soup = BeautifulSoup(html_content, "html.parser")
+    for tag in soup(["script", "style", "header", "footer", "nav", "svg", "img", "iframe", "noscript", "form"]):
+        tag.decompose()
+    for comment in soup.find_all(string=lambda text: isinstance(text, Comment)):
+        comment.extract()
+    def convert_element(element) -> str:
+        if element.name is None:
+            return element.string or ""
+        name = element.name.lower()
+        children_text = "".join(convert_element(child) for child in element.children)
+        if name in ["h1", "h2", "h3", "h4", "h5", "h6"]:
+            level = int(name[1])
+            return f"\n\n{'#' * level} {children_text.strip()}\n\n"
+        elif name == "p":
+            return f"\n\n{children_text.strip()}\n\n"
+        elif name == "br":
+            return "\n"
+        elif name in ["ul", "ol"]:
+            return f"\n{children_text}\n"
+        elif name == "li":
+            return f"* {children_text.strip()}\n"
+        elif name == "table":
+            rows = []
+            for tr in element.find_all("tr", recursive=True):
+                cells = [cell.get_text(" ", strip=True) for cell in tr.find_all(["td", "th"], recursive=False)]
+                if cells:
+                    rows.append("| " + " | ".join(cells) + " |")
+            if not rows:
+                return ""
+            if len(rows) > 0:
+                header_cells_count = len(rows[0].split("|")) - 2
+                if header_cells_count > 0:
+                    separator = "| " + " | ".join(["---"] * header_cells_count) + " |"
+                    rows.insert(1, separator)
+            return "\n\n" + "\n".join(rows) + "\n\n"
+        elif name in ["div", "section", "article"]:
+            return f"\n{children_text}\n"
+        elif name in ["strong", "b"]:
+            return f"**{children_text.strip()}**"
+        elif name in ["em", "i"]:
+            return f"*{children_text.strip()}*"
+        else:
+            return children_text
+    markdown = convert_element(soup.body or soup)
+    markdown = re.sub(r'\n{3,}', '\n\n', markdown)
+    markdown = re.sub(r' {2,}', ' ', markdown)
+    return markdown.strip()
+
+
 def clean_price(price_str: Optional[str]) -> Optional[int]:
-    """Normalize Vietnamese gold prices to VND per chi."""
+    """Normalize Vietnamese gold prices to VND per chi/luong."""
     if not price_str:
         return None
-
-    cleaned = re.sub(r"[^\d]", "", str(price_str))
-    if not cleaned:
+    value_str = str(price_str).lower().strip()
+    if "triệu" in value_str or "tr" in value_str or "trieu" in value_str:
+        match = re.search(r"(\d+(?:[.,]\d+)?)", value_str)
+        if match:
+            val = float(match.group(1).replace(",", "."))
+            return int(val * 1_000_000)
+    value_str = re.sub(r"[^\d.,]", "", value_str)
+    if not value_str:
         return None
-
-    value = int(cleaned)
-    if value < 100000:
-        value *= 1000
-    return value
+    value_str = value_str.replace(",", ".")
+    if value_str.count(".") > 1:
+        value_str = value_str.replace(".", "")
+    elif value_str.count(".") == 1:
+        parts = value_str.split(".")
+        if len(parts[1]) == 3:
+            val = float(value_str)
+            if val < 1000:
+                return int(val * 1_000_000)
+            else:
+                value_str = value_str.replace(".", "")
+        else:
+            val = float(value_str)
+            if val < 1000:
+                return int(val * 1_000_000)
+            value_str = value_str.replace(".", "")
+    try:
+        value = int(float(value_str))
+        if value < 100000:
+            value *= 1000
+        return value
+    except ValueError:
+        return None
 
 
 def clean_real_estate_price(price_str: Optional[str]) -> Optional[int]:
     """Normalize Vietnamese real-estate prices to VND."""
     if not price_str:
         return None
-
     value = str(price_str).lower().strip()
-    value = value.replace(",", ".")
     if any(token in value for token in ["thỏa thuận", "thoả thuận", "liên hệ", "lien he"]):
         return None
-
-    match = re.search(r"(\d+(?:\.\d+)?)", value)
-    if not match:
+    tỷ_match = re.search(r"(\d+(?:[.,]\d+)?)\s*(?:tỷ|ty|tỉ)", value)
+    tr_match = re.search(r"(\d+(?:[.,]\d+)?)\s*(?:triệu|trieu|tr)", value)
+    total_vnd = 0.0
+    found = False
+    if tỷ_match:
+        tỷ_val = float(tỷ_match.group(1).replace(",", "."))
+        total_vnd += tỷ_val * 1_000_000_000
+        found = True
+        billion_end = tỷ_match.end()
+        post_value = value[billion_end:]
+        tr_submatch = re.search(r"(\d+(?:[.,]\d+)?)\s*(?:triệu|trieu|tr)", post_value)
+        if tr_submatch:
+            tr_val = float(tr_submatch.group(1).replace(",", "."))
+            total_vnd += tr_val * 1_000_000
+    elif tr_match:
+        tr_val = float(tr_match.group(1).replace(",", "."))
+        total_vnd += tr_val * 1_000_000
+        found = True
+    else:
+        cleaned = re.sub(r"[^\d]", "", value)
+        if cleaned:
+            total_vnd = float(cleaned)
+            found = True
+    if not found:
         return None
-
-    amount = float(match.group(1))
-    if "tỷ" in value or "ty" in value:
-        amount *= 1_000_000_000
-    elif "triệu" in value or "trieu" in value:
-        amount *= 1_000_000
-    elif "nghìn" in value or "ngan" in value or "ngàn" in value:
-        amount *= 1_000
-
-    return int(amount)
+    return int(total_vnd)
 
 
 def clean_area_m2(area_str: Optional[str]) -> Optional[float]:
     """Extract a square-meter value from Vietnamese real-estate text."""
     if not area_str:
         return None
-
     value = str(area_str).lower().replace(",", ".")
-    match = re.search(r"(\d+(?:\.\d+)?)\s*(?:m2|m²|m\s*2)", value)
+    match = re.search(r"(\d+(?:\.\d+)?)\s*(?:m2|m²|mét vuông|met vuong|m\s*2)", value)
     if not match:
+        match_any = re.search(r"(\d+(?:\.\d+)?)", value)
+        if match_any:
+            return float(match_any.group(1))
         return None
     return float(match.group(1))
 
@@ -1460,99 +1553,123 @@ class GenericLLMCrawler:
     def _fetch_html_with_playwright(self):
         print(f"[!] Starting Playwright fetch for {self.target_url}...")
         try:
-            if True:
-                context = None
-                launched_browser = False
+            context = None
+            launched_browser = False
+            print("[*] Opening Persistent Context with CloakBrowser...")
+            from cloakbrowser import launch_persistent_context
+            import os
+            profile_dir = os.path.abspath("browser_profiles/default")
+            os.makedirs(profile_dir, exist_ok=True)
+            
+            context = launch_persistent_context(
+                user_data_dir=profile_dir,
+                headless=False,
+                humanize=True,
+                viewport={"width": 1920, "height": 1080},
+                args=[
+                    "--disable-blink-features=AutomationControlled",
+                    "--disable-infobars",
+                    "--start-maximized"
+                ],
+                bypass_csp=True
+            )
+            launched_browser = True
+            
+            page = context.pages[0] if context.pages else context.new_page()
+            try:
+                page.goto(self.target_url, wait_until="domcontentloaded", timeout=60000)
+            except Exception as e:
+                print(f"[-] page.goto timeout/error: {e}. Continue anyway...")
+            
+            page.wait_for_timeout(5000)
+            html = page.content()
 
-                if True:
-                    print("[*] Opening Persistent Context with CloakBrowser...")
-                    from cloakbrowser import launch_persistent_context
-                    import os
-                    profile_dir = os.path.abspath("browser_profiles/default")
-                    os.makedirs(profile_dir, exist_ok=True)
-                    
-                    context = launch_persistent_context(
-                        user_data_dir=profile_dir,
-                        headless=False,
-                        humanize=True,
-                        viewport={"width": 1920, "height": 1080},
-                        args=[
-                            "--disable-blink-features=AutomationControlled",
-                            "--disable-infobars",
-                            "--start-maximized"
-                        ],
-                        bypass_csp=True
-                    )
-                    launched_browser = True
-                
-                page = context.pages[0] if context.pages else context.new_page()
+            while self._detect_blocking_signals(html):
+                print("[-] BLOCKED (MFA/Captcha)! Bot paused...")
+                print("[*] Solve Captcha/MFA in browser window. Bot will retry in 5s...")
+                auto_solve_challenge(page)
+                page.wait_for_timeout(3000)
                 try:
-                    page.goto(self.target_url, wait_until="domcontentloaded", timeout=60000)
-                except Exception as e:
-                    print(f"[-] page.goto timeout/error: {e}. Continue anyway...")
-                
-                # Wait 5 seconds for dynamic content
-                page.wait_for_timeout(5000)
-                html = page.content()
+                    html = page.content()
+                except:
+                    pass
 
-                # HITL Logic
-                while self._detect_blocking_signals(html):
-                    print("[-] BLOCKED (MFA/Captcha)! Bot paused...")
-                    print("[*] Solve Captcha/MFA in browser window. Bot will retry in 5s...")
-                    auto_solve_challenge(page)
-                    page.wait_for_timeout(3000)
-                    try:
-                        html = page.content()
-                    except:
-                        pass
-
-                page.close()
-                if launched_browser:
-                    context.close()
-                return html
+            page.close()
+            if launched_browser:
+                context.close()
+            return html
         except Exception as e:
             print(f"[-] Generic Playwright fetch failed: {e}")
             return None
 
-    def _call_llm(self, clean_text: str, prompt: str) -> Optional[List[Dict]]:
-        try:
-            headers = {"Content-Type": "application/json"}
-            if self.openai_api_key:
-                headers["Authorization"] = f"Bearer {self.openai_api_key}"
-            payload = {
-                "model": self.ai_model,
-                "prompt": prompt,
-                "system": "Return a JSON list of objects only. Do not include markdown fences.",
-                "format": "json",
-                "stream": False,
-            }
-            response = requests.post(
-                self.ollama_url,
-                headers=headers,
-                json=payload,
-                verify=self.openai_verify_ssl,
-                timeout=120,
-            )
-            if response.status_code == 200:
-                content = response.json().get("response").strip()
-                if content.startswith("```"):
-                    content = re.sub(r"^```(?:json)?\s*", "", content)
-                    content = re.sub(r"\s*```$", "", content)
-                return json.loads(content)
-            print(f"[-] LLM API error: {response.status_code} {response.text}")
-            return None
-        except Exception as e:
-            print(f"[-] LLM API unavailable: {e}")
-            return None
-
     def _clean_html(self, html: str) -> str:
-        from bs4 import Comment
-        soup = BeautifulSoup(html or "", "html.parser")
-        for tag in soup(["script", "style", "header", "footer", "nav", "svg", "img"]):
-            tag.decompose()
-        for comment in soup.find_all(string=lambda text: isinstance(text, Comment)):
-            comment.extract()
-        return " ".join(soup.stripped_strings)[:8000]
+        return html_to_clean_markdown(html)
+
+    def _call_llm(self, prompt: str, content: str, response_schema: Optional[Dict] = None) -> Optional[Dict]:
+        clean_text = self._clean_html(content)[:12000]
+        full_prompt = f"{prompt}\n\nContext:\n{clean_text}"
+        
+        use_ollama = not bool(self.openai_api_key) or "gemma" in self.ai_model.lower() or "llama" in self.ai_model.lower()
+        headers = {"Content-Type": "application/json"}
+        
+        payload = {
+            "model": self.ai_model,
+            "messages": [
+                {
+                    "role": "system", 
+                    "content": "You are a data extraction assistant. Always respond with raw valid JSON matching the requested schema. Do not output markdown fences or any conversational text."
+                },
+                {"role": "user", "content": full_prompt}
+            ],
+            "temperature": 0.1
+        }
+        
+        if use_ollama:
+            actual_model = self.ai_model
+            print(f"[*] Calling Local LLM ({actual_model}) via Ollama...")
+            endpoint = self.ollama_url
+            if "api/generate" in endpoint:
+                endpoint = endpoint.replace("api/generate", "v1/chat/completions")
+            elif not endpoint.endswith("/v1/chat/completions"):
+                endpoint = endpoint.rstrip('/') + "/v1/chat/completions"
+        else:
+            print(f"[*] Calling Cloud LLM ({self.ai_model}) via OpenAI-compatible endpoint...")
+            endpoint = "https://api.openai.com/v1/chat/completions"
+            if "deepseek" in self.ai_model.lower() or "deepseek" in (os.environ.get("DEEPSEEK_API_KEY") or ""):
+                endpoint = "https://api.deepseek.com/chat/completions"
+            headers["Authorization"] = f"Bearer {self.openai_api_key}"
+
+        if response_schema:
+            payload["response_format"] = {
+                "type": "json_schema",
+                "json_schema": {
+                    "name": "extracted_data",
+                    "strict": True,
+                    "schema": response_schema
+                }
+            }
+        else:
+            payload["response_format"] = {"type": "json_object"}
+
+        try:
+            resp = requests.post(endpoint, headers=headers, json=payload, verify=self.openai_verify_ssl, timeout=120)
+            if resp.status_code == 400 and response_schema:
+                print("[-] JSON Schema format rejected by provider. Retrying with basic JSON mode...")
+                payload["response_format"] = {"type": "json_object"}
+                resp = requests.post(endpoint, headers=headers, json=payload, verify=self.openai_verify_ssl, timeout=120)
+                
+            resp.raise_for_status()
+            result_text = resp.json()["choices"][0]["message"]["content"].strip()
+            
+            if result_text.startswith("```"):
+                result_text = re.sub(r"^```(?:json)?\s*", "", result_text)
+                result_text = re.sub(r"\s*```$", "", result_text)
+                result_text = result_text.strip()
+                
+            return json.loads(result_text)
+        except Exception as e:
+            print(f"[-] LLM Call failed: {e}")
+            return None
 
 
 class GenericGoldCrawler(GenericLLMCrawler):
@@ -1578,29 +1695,68 @@ class GenericGoldCrawler(GenericLLMCrawler):
         if not html:
             return {"generic_gold": source_result("failed", [], "Could not fetch HTML")}
 
-        clean_text = self._clean_html(html)
-        prompt = f'''Extract all gold buy/sell prices from this Vietnamese text.
-Return a JSON list of objects. Normalize all prices to VND per chi.
-Expected structure for each object:
-{{
-  "company": "Name of the company/shop",
-  "gold_type": "Name of the gold product (e.g. SJC, Nhẫn, 9999)",
-  "buy_price": <number or null>,
-  "sell_price": <number or null>,
-  "location": "Location if available, else null"
-}}
-
-Text:
-{clean_text}'''
+        prompt = (
+            "Extract all gold buy and sell prices from the text. Look for companies like SJC, DOJI, PNJ, or others. "
+            "Identify the gold products (types), buy prices, sell prices, and locations. "
+            "Return a JSON object containing a 'records' list of objects."
+        )
+        schema = {
+            "type": "object",
+            "properties": {
+                "records": {
+                    "type": "array",
+                    "items": {
+                        "type": "object",
+                        "properties": {
+                            "company": {"type": ["string", "null"]},
+                            "gold_type": {"type": "string"},
+                            "buy_price": {"type": ["integer", "string", "null"]},
+                            "sell_price": {"type": ["integer", "string", "null"]},
+                            "location": {"type": ["string", "null"]}
+                        },
+                        "required": ["company", "gold_type", "buy_price", "sell_price", "location"],
+                        "additionalProperties": False
+                    }
+                }
+            },
+            "required": ["records"],
+            "additionalProperties": False
+        }
         
-        data = self._call_llm(clean_text, prompt)
-        if data and isinstance(data, list):
-            timestamp = int(datetime.now().timestamp())
-            for item in data:
-                item["datetime"] = timestamp
-                item["source"] = self.target_url
-            return {"generic_gold": source_result("ok", data)}
-        return {"generic_gold": source_result("failed", [], "LLM extraction failed or returned invalid format")}
+        data = self._call_llm(prompt, html, response_schema=schema)
+        if not data:
+            return {"generic_gold": source_result("failed", [], "LLM extraction failed or returned invalid format")}
+            
+        records_list = []
+        if isinstance(data, dict):
+            records_list = data.get("records") or []
+        elif isinstance(data, list):
+            records_list = data
+            
+        timestamp = int(datetime.now().timestamp())
+        records = []
+        for item in records_list:
+            buy_raw = item.get("buy_price")
+            sell_raw = item.get("sell_price")
+            buy = clean_price(str(buy_raw)) if buy_raw is not None else None
+            sell = clean_price(str(sell_raw)) if sell_raw is not None else None
+            
+            company = item.get("company") or "Generic"
+            if company.lower() == "generic":
+                from urllib.parse import urlparse
+                domain = urlparse(self.target_url).netloc.replace("www.", "")
+                company = domain.split(".")[0].upper()
+                
+            records.append({
+                "datetime": timestamp,
+                "company": company,
+                "gold_type": item.get("gold_type", "Unknown"),
+                "buy_price": buy,
+                "sell_price": sell,
+                "location": item.get("location") or "National",
+                "source": self.target_url
+            })
+        return {"generic_gold": source_result("ok", records)}
 
 
 class GenericRealEstateCrawler(GenericLLMCrawler):
@@ -1626,38 +1782,68 @@ class GenericRealEstateCrawler(GenericLLMCrawler):
         if not html:
             return {"generic_real_estate": source_result("failed", [], "Could not fetch HTML")}
 
-        clean_text = self._clean_html(html)
-        prompt = f'''Extract all real estate listings from this Vietnamese text.
-Return a JSON list of objects.
-Expected structure for each object:
-{{
-  "title": "Title of the listing",
-  "price": <number in VND or null>,
-  "price_text": "Original text of the price",
-  "area_m2": <number or null>,
-  "location": "Location if available, else null"
-}}
-
-Text:
-{clean_text}'''
+        prompt = (
+            "Extract real estate listings from the text. "
+            "Identify the title, price details, area in m2, and location. "
+            "Return a JSON object containing a 'records' list of objects."
+        )
+        schema = {
+            "type": "object",
+            "properties": {
+                "records": {
+                    "type": "array",
+                    "items": {
+                        "type": "object",
+                        "properties": {
+                            "title": {"type": "string"},
+                            "price": {"type": ["integer", "string", "null"]},
+                            "price_text": {"type": ["string", "null"]},
+                            "area_m2": {"type": ["number", "string", "null"]},
+                            "location": {"type": ["string", "null"]}
+                        },
+                        "required": ["title", "price", "price_text", "area_m2", "location"],
+                        "additionalProperties": False
+                    }
+                }
+            },
+            "required": ["records"],
+            "additionalProperties": False
+        }
         
-        data = self._call_llm(clean_text, prompt)
-        if data and isinstance(data, list):
-            timestamp = int(datetime.now().timestamp())
-            for item in data:
-                item["datetime"] = timestamp
-                item["source"] = self.target_url
-                item["property_type"] = "Real Estate"
+        data = self._call_llm(prompt, html, response_schema=schema)
+        if not data:
+            return {"generic_real_estate": source_result("failed", [], "LLM extraction failed or returned invalid format")}
+            
+        records_list = []
+        if isinstance(data, dict):
+            records_list = data.get("records") or []
+        elif isinstance(data, list):
+            records_list = data
+            
+        timestamp = int(datetime.now().timestamp())
+        records = []
+        for item in records_list:
+            price_raw = item.get("price")
+            area_raw = item.get("area_m2")
+            price = clean_real_estate_price(str(price_raw)) if price_raw is not None else None
+            area = clean_area_m2(str(area_raw)) if area_raw is not None else None
+            
+            price_per_m2 = None
+            if price and area:
+                price_per_m2 = int(price / area)
                 
-                price = item.get("price")
-                area = item.get("area_m2")
-                if price and area:
-                    item["price_per_m2"] = int(price / area)
-                else:
-                    item["price_per_m2"] = None
-
-            return {"generic_real_estate": source_result("ok", data)}
-        return {"generic_real_estate": source_result("failed", [], "LLM extraction failed or returned invalid format")}
+            records.append({
+                "datetime": timestamp,
+                "title": item.get("title", "Unknown"),
+                "price": price,
+                "price_text": item.get("price_text") or str(price_raw or "Thỏa thuận"),
+                "area_m2": area,
+                "price_per_m2": price_per_m2,
+                "location": item.get("location") or "Unknown",
+                "source": self.target_url,
+                "property_type": "Real Estate"
+            })
+        return {"generic_real_estate": source_result("ok", records)}
 
 
 class HybridGoldCrawler(MultiSourceGoldCrawler):

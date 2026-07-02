@@ -72,4 +72,26 @@ async def get_trends(
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
 
+@router.get("/api/analytics/source-momentum")
+async def get_source_momentum(
+    scope: str = Query('main', description="Momentum scope: main or all"),
+    compare: str = Query('previous', description="Comparison mode: previous")
+):
+    """Compare latest saved source rows against their previous crawl."""
+    if not services.analyzer:
+        raise HTTPException(status_code=500, detail="Analyzer service unavailable")
+
+    scope_lower = scope.lower()
+    compare_lower = compare.lower()
+
+    if scope_lower not in ['main', 'all']:
+        raise HTTPException(status_code=400, detail="Invalid scope. Must be main or all")
+    if compare_lower != 'previous':
+        raise HTTPException(status_code=400, detail="Invalid compare. Must be previous")
+
+    try:
+        return await asyncio.to_thread(services.analyzer.get_source_momentum, scope=scope_lower, compare=compare_lower)
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
 
