@@ -20,7 +20,13 @@
     "start": "react-scripts start",
     "build": "react-scripts build",
     "test": "react-scripts test",
+    "test:e2e": "playwright test",
+    "test:e2e:ui": "playwright test --ui",
+    "test:e2e:report": "playwright show-report",
     "eject": "react-scripts eject"
+  },
+  "devDependencies": {
+    "@playwright/test": "^1.49.0"
   },
   "eslintConfig": {
     "extends": [
