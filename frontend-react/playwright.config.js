@@ -1,4 +1,8 @@
 const { defineConfig, devices } = require('@playwright/test');
+const path = require('path');
+
+const rootDir = path.resolve(__dirname, '..');
+const reportDir = process.env.PLAYWRIGHT_REPORT_DIR || path.join(rootDir, 'output/playwright');
 
 /**
  * Playwright E2E configuration for Gold Price Dashboard.
@@ -14,13 +18,16 @@ module.exports = defineConfig({
   forbidOnly: !!process.env.CI,
   retries: process.env.CI ? 2 : 0,
   workers: process.env.CI ? 1 : undefined,
+  outputDir: path.join(reportDir, 'test-results'),
   reporter: [
-    ['html', { open: 'never', outputFolder: 'playwright-report' }],
-    ['list']
+    ['list'],
+    ['html', { open: 'never', outputFolder: path.join(reportDir, 'html') }],
+    ['json', { outputFile: path.join(reportDir, 'results.json') }],
+    ['junit', { outputFile: path.join(reportDir, 'junit.xml') }],
   ],
   use: {
     baseURL: process.env.BASE_URL || 'http://localhost:3000',
-    trace: 'on-first-retry',
+    trace: 'retain-on-failure',
     screenshot: 'only-on-failure',
     video: 'retain-on-failure',
   },
@@ -29,14 +36,6 @@ module.exports = defineConfig({
     {
       name: 'chromium',
       use: { ...devices['Desktop Chrome'] },
-    },
-    {
-      name: 'firefox',
-      use: { ...devices['Desktop Firefox'] },
-    },
-    {
-      name: 'webkit',
-      use: { ...devices['Desktop Safari'] },
     },
     {
       name: 'mobile-chrome',

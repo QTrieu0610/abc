@@ -1,0 +1,120 @@
+name: Web CI & Playwright Test
+
+on:
+  push:
+    branches: [ main, master ]
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: web-ci-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  verify:
+    name: Build and regression checks
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    env:
+      CI: 'true'
+      PYTHONUTF8: '1'
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+          cache: pip
+          cache-dependency-path: requirements.txt
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: npm
+          cache-dependency-path: frontend-react/package-lock.json
+
+      - name: Prepare evidence directory
+        run: mkdir -p output/ci
+
+      - name: Install Python dependencies
+        run: python -m pip install -r requirements.txt
+
+      - name: Install frontend dependencies
+        run: npm ci --prefix frontend-react
+
+      - name: Build frontend
+        run: npm run build --prefix frontend-react
+
+      - name: Run backend and regression verification harness
+        run: python scripts/ci_verify.py
+
+      - name: Record blocked execution if setup did not reach the tests
+        if: ${{ always() }}
+        run: |
+          python - <<'PY'
+          import json, os
+          from pathlib import Path
+          path = Path('output/ci/manifest.json')
+          if not path.exists():
+              path.parent.mkdir(parents=True, exist_ok=True)
+              path.write_text(json.dumps({
+                  'outcome': 'BLOCKED', 'selected': None, 'executed': 0,
+                  'code_revision': os.getenv('GITHUB_SHA'),
+                  'run_id': os.getenv('GITHUB_RUN_ID'),
+                  'attempt_id': os.getenv('GITHUB_RUN_ATTEMPT'),
+                  'reason': 'Setup/build failed before verification harness started.'
+              }, indent=2))
+          PY
+
+      - name: Upload run evidence on success or failure
+        if: ${{ always() }}
+        uses: actions/upload-artifact@v4
+        with:
+          name: ci-evidence-${{ github.run_id }}-${{ github.run_attempt }}
+          path: output/ci/
+          if-no-files-found: error
+          retention-days: 7
+
+  playwright_cases:
+    name: Playwright E2E cases and HTML report
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    env:
+      CI: 'true'
+      PYTHONUTF8: '1'
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: npm
+          cache-dependency-path: frontend-react/package-lock.json
+
+      - name: Install dependencies
+        run: npm ci --prefix frontend-react
+
+      - name: Install Chromium and system dependencies
+        working-directory: frontend-react
+        run: npx playwright install --with-deps chromium
+
+      - name: Execute E2E cases with Playwright Test
+        working-directory: frontend-react
+        run: npm run test:e2e
+
+      - name: Upload Playwright HTML report and per-case evidence
+        if: ${{ always() }}
+        uses: actions/upload-artifact@v4
+        with:
+          name: playwright-report-${{ github.run_id }}-${{ github.run_attempt }}
+          path: output/playwright/
+          if-no-files-found: warn
+          retention-days: 7

@@ -49,11 +49,12 @@ api_key.txt
 # Documentation markdown files (optional - remove if you want to keep them)
 test_date_fix.md
 
-# Playwright
+# Playwright and CI outputs
 .playwright-mcp/
 test-results/
 playwright-report/
 blob-report/
 playwright/.cache/
+output/
 
 vapi/vapi-master/
